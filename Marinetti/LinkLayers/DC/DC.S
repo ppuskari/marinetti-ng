@@ -1,0 +1,11 @@
+ LKV $02
+ VER $02
+ TYP $BC
+ ADR $4083
+ LINK DC.CODE.L
+ LINK DC.CONFIG.L
+ LINK DVR.8530.L
+ SAV DC
+ END
+ CMD COPYFORK DC *:System:TCPIP:Direct.Connect -d -l
+ CMD COPYFORK DC.res *:System:TCPIP:Direct.Connect -r -c -l

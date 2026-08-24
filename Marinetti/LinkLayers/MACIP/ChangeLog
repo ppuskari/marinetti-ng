@@ -1,0 +1,88 @@
+=======================================
+ MacIP link layer module for Marinetti
+Copyright (c) 1998-2003 Richard Bennett
+    Written by Richard Bennett
+=======================================
+
+This file contains the change history for the MacIP link layer module.
+
+People who assisted with new information on a bug are listed in brackets.
+
+  1.2 - 23rd July 2003
+
+- Bumped version number
+
+  1.2d3 - 10th November 2002
+
+- Debug output in format acceptable to Text2Pcap (Andrew)
+
+  1.1 - 29th March 2002
+
+- Released as open source.
+
+  1.1a1 - 9th July 1999
+
+- Support for LinkConfigFileName. Filename = MacIP.config
+
+  1.0 - release
+
+  1.0b5 -
+
+- Couple of changes now that I actually have an "AppleShare Programmer's Guide
+  for the Apple II" reference. Mainly source level only, but test to be sure.
+  There's nothing that should improve the datagrams not getting through
+  problem.
+
+  1.0b4 - 16th August 1998
+
+- Now uses link layer interface version 2, which requires Marinetti 2.1.
+- Was trashing Marinetti's direct page. Left over from the original hack at
+  Tony's, when I was doing a dodgey by doubling up on direct page I knew
+  wasn't being used. Marinetti 2.0f4 moved its direct page around, causing it
+  to get confused about some new pointers which suddenly appeared out of
+  nowhere! Fixed. Now only uses direct page space allocated per link layer
+  module specification.
+- Connect message flag was being read as reversed, causing messages when
+  not, and not when messages. Fixed.
+
+  1.0b3 - 14th August 1998
+
+- If show connect messages was turned on, but display pointer was nil, MacIP
+  was still trying to call address $00/0000. Dumb, really dumb... Fixed.
+
+  1.0b2 - 9th August 1998
+
+- For some reason the memory userid wasn't being set up, causing all memory
+  allocations to fail. Fixed.
+
+  1.0b1 - 8th August 1998
+
+- Added a boot icon. I don't really like it much, feel free to mess with it.
+  (Requires Marinetti 2.0f3 to display the icon on boot)
+
+  1.0a3 - 7th August 1998
+
+- Stack imbalance in new datagram build routine. (I don't have access to a
+  network, so testing involves emailing Tony with each new build)
+- Optimised datagram build routine.
+- Now returns authorisation messages on connect errors.
+- Now correctly cleans up after a failed connect.
+
+  1.0a2 - 7th August 1998
+
+- Was trashing random locations in bank 0 (bad DP register) while building
+  incoming datagrams. This has been in since day one. Fixed.
+  (Tony Diaz)
+
+  1.0a1 - 7th August 1998
+
+- Changed dialog layout to be more intuitive.
+- Re-organising source now that I have access to my macros and documentation.
+- rVersion bytes were in the wrong order. Fixed. Requires Marinetti 2.0f3 to
+  display correctly on text boot splash.
+
+  1.0d6 - 1st August to 3rd August 1998
+
+- Initial release. Developed at Tony Diaz' place.
+
+*END*

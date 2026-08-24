@@ -1,0 +1,91 @@
+********************************************
+* Marinetti internal tool macros
+*   by Andrew Roughan
+*
+********************************************
+* 2003-07-18 AJR Original version
+********************************************
+
+ MACRO
+&lab _TCPIPSetMyIPAddress
+&lab ldx #$3836
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPGetDP
+&lab ldx #$3936
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPGetDebugHex
+&lab ldx #$3A36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPSetDebugHex
+&lab ldx #$3B36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPGetDebugTCP
+&lab ldx #$3C36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPSetDebugTCP
+&lab ldx #$3D36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPGetUserRecord
+&lab ldx #$3E36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab _TCPIPReloadModuleList
+&lab ldx #$4D36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPSetMyIPAddress &p1
+&lab ph4 &p1
+     ldx #$3836
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPGetDP
+&lab ldx #$3936
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPGetDebugHex
+&lab ldx #$3A36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPSetDebugHex &p1
+&lab ph2 &p1
+     ldx #$3B36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPGetDebugTCP
+&lab ldx #$3C36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPSetDebugTCP &p1
+&lab ph2 &p1
+     ldx #$3D36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPGetUserRecord
+&lab ldx #$3E36
+     jsl $E10000
+ MEND 
+ MACRO
+&lab ~TCPIPReloadModuleList
+&lab ldx #$4D36
+     jsl $E10000
+ MEND

@@ -1,0 +1,9 @@
+* Files in this folder are Merlin16 Macro library files.
+* They should be copied to your Merlin16 Macro library folder.
+* To find the location of your Merlin16 Macro library folder
+* enter Merlin and catalog pathname "4/"
+* On my system 4/ is /Bernie/Merlin16/Macro.library
+* Marinetti source files rely on the macro folder being assigned to 4/
+* If you have modified Merlins default paths then you will need
+* to modify the source files. Please do not commit your changes into CVS.
+

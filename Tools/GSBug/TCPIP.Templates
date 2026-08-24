@@ -1,0 +1,249 @@
+;----------------------------------------------------------------
+;
+; Marinetti TCP/IP templates for GSBug
+;
+; By Andrew Roughan
+; This file is released to the public domain.
+;
+;----------------------------------------------------------------
+; 2008-02-09 AJR  Original version
+;----------------------------------------------------------------
+
+_START Marinetti
+errTable
+tuneRecord
+unBuff
+pwBuff
+hnBuff
+module
+linkInfoBlk
+DNSRec
+dnrBuffer
+udpVars
+rrBuff
+rlrBuff
+srBuff
+destRec
+cvtRec
+IPCDataInRecord
+variablesRecord
+dnrTimeoutsRecord
+userRecord
+_END
+
+_START errTable
+tcpDGMSTBLEN LONG
+ 
+tcpDGMSTOTAL LONG
+tcpDGMSFRAGSIN LONG
+tcpDGMSFRAGSLOST LONG
+tcpDGMSBUILT LONG
+
+tcpDGMSOK LONG
+
+tcpDGMSBADCHK LONG
+tcpDGMSBADHEADLEN LONG
+tcpDGMSBADPROTO LONG
+tcpDGMSBADIP LONG
+
+tcpDGMSICMP LONG
+tcpDGMSICMPUSER LONG
+tcpDGMSICMPKERNEL LONG
+
+tcpDGMSICMPBAD LONG
+tcpDGMSICMPBADTYPE LONG
+tcpDGMSICMPBADCODE LONG
+tcpDGMSICMPECHORQ LONG
+tcpDGMSICMPECHORQOUT LONG
+tcpDGMSICMPECHORP LONG
+tcpDGMSICMPECHORPBADID LONG
+
+tcpDGMSUDP LONG
+tcpDGMSUDPBAD LONG
+tcpDGMSUDPNOPORT LONG
+
+tcpDGMSTCP LONG
+tcpDGMSTCPBAD LONG
+tcpDGMSTCPNOPORT LONG
+tcpDGMSTCPQUEUED LONG
+tcpDGMSTCPOLD LONG
+
+tcpDGMSOFRAGMENTS LONG
+tcpDGMSFRAGMENTED LONG
+_END
+
+_START tuneRecord
+tcpTUNECOUNT WORD
+tcpTUNEIPUSERPOLLCT WORD
+tcpTUNEIPRUNQFREQ WORD
+tcpTUNEIPRUNQCT WORD
+tcpTUNETCPUSERPOLL WORD
+_END
+
+_START unBuff
+username PSTRING
+_END
+
+_START pwBuff
+password PSTRING
+_END
+
+_START hnBuff
+hostname PSTRING
+_END
+
+_START module
+liMethodID WORD
+liName PSTRING
+liVersion LONG
+liFlags WORD
+liFilename PSTRING
+liMenuItem PSTRING
+_END
+
+_START linkInfoBlk
+liMethodID WORD
+liName PSTRING
+liVersion LONG
+liFlags WORD
+_END
+
+_START DNSRec
+DNSMain LONG
+DNSAux LONG
+_END
+
+_START dnrBuffer
+DNRstatus WORD
+DNRIPaddress LONG
+_END
+
+_START udpVars
+uvQueueSize WORD
+uvError WORD
+uvErrorTick LONG
+uvCount LONG
+uvTotalCount LONG
+uvDispatchFlag WORD
+_END
+
+_START rrBuff
+rrBuffCount LONG
+rrBuffHandle LONG
+rrMoreFlag WORD
+rrPushFlag WORD
+rrUrgentFlag WORD
+_END
+
+_START rlrBuff
+rlrBuffCount LONG
+rlrBuffHandle LONG
+rlrIsDataFlag WORD
+rlrMoreFlag WORD
+rlrBuffSize LONG
+_END
+
+_START srBuff
+srState WORD
+srNetworkError WORD
+srSndQueued LONG
+srRcvQueued LONG
+srDestIP LONG
+srDestPort WORD
+srConnectType WORD
+srAcceptCount WORD
+_END
+
+_START destRec
+drUserID WORD
+drDestIP LONG
+drDestPort WORD
+_END
+
+_START cvtRec
+cvtIPAddress LONG
+cvtPort WORD
+_END
+
+_START IPCDataInRecord
+inwLength WORD
+inwIP LONG
+inwMethod WORD
+inwMTU WORD
+inwLVPtr LONG
+_END
+
+_START variablesRecord
+lvVersion WORD
+lvConnected WORD
+lvIPaddress LONG
+lvRefCon LONG
+lvErrors LONG
+lvMTU WORD
+_END
+
+_START dnrTimeoutsRecord
+dnrRETRIES WORD
+dnrTIMER WORD
+_END
+
+_START userRecord
+uwUserID WORD
+uwDestIP LONG
+uwDestPort WORD
+uwIP_TOS WORD
+uwIP_TTL WORD
+
+uwSourcePort WORD
+uwLogoutPending WORD
+uwICMPQueue LONG
+uwTCPQueue LONG
+
+uwTCPMaxSendSeg WORD
+uwTCPMaxReceiveSeg WORD
+uwTCPDataInQ LONG
+uwTCPDataIn LONG
+uwTCPPushInFlag WORD
+uwTCPPushInOffset LONG
+uwTCPPushOutFlag WORD
+uwTCPPushOutSEQ LONG
+uwTCPDataOut LONG
+uwSND_UNA LONG
+uwSND_NXT LONG
+uwSND_WND WORD
+uwSND_UP WORD
+uwSND_WL1 LONG
+uwSND_WL2 LONG
+uwISS LONG
+uwRCV_NXT LONG
+uwRCV_WND WORD
+uwRCV_UP WORD
+uwIRS LONG
+uwTCP_State WORD
+uwTCP_StateTick LONG
+uwTCP_ErrCode WORD
+uwTCP_ICMPError WORD
+uwTCP_Server WORD
+uwTCP_ChildList LONG
+uwTCP_ACKPending WORD
+uwTCP_ForceFIN WORD
+uwTCP_FINSEQ LONG
+uwTCP_MyFINACKed WORD
+uwTCP_Timer LONG
+uwTCP_TimerState WORD
+uwTCP_rt_timer WORD
+uwTCP_2MSL_timer WORD
+uwTCP_SaveTTL WORD
+uwTCP_SaveTOS WORD
+uwTCP_TotalIN LONG
+uwTCP_TotalOUT LONG
+
+uwUDP_Server WORD
+uwUDPQueue LONG
+uwUDPError WORD
+uwUDPErrorTick LONG
+uwUDPCount LONG
+
+uwTriggers LONG 1
+uwSysTriggers LONG 1
+_END

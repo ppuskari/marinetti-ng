@@ -1,0 +1,9 @@
+ LKV $02
+ VER $02
+ ASM Casper.S
+ LINK Casper.L
+ LINK 5/ADDPSTRHANDLE
+ LINK 5/CLSTRIP
+ SAV Casper
+ END
+ CMD COPYFORK Casper.RES Casper -c -r -l

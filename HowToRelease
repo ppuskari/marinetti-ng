@@ -1,0 +1,127 @@
+How To Prepare a Release of Marinetti
+
+2003-04-25 AJR Initial Version
+2003-06-22 AJR InstallMagic needs ProDOS :RAM5 and case sensitive paths
+2003-07-18 AJR Document how to create and release build file archive
+2007-06-20 AJR Added CDev components
+2007-06-28 AJR Added TCP Snooper components
+2009-02-13 AJR Added Tool stub components
+
+This document describes the steps necessary to prepare an archive of the Marinetti Object files for distribution to the public in a form that can be installed on a users system.
+
+At a high level, here are the steps:
+1) Build the source files to create the object files
+2) Prepare the object files for packaging
+3) Package the object files into an Installer for release
+4) Release the Installer to the public
+5) Package the build files for release (optional)
+6) Release the build files to the public (optional)
+7) Cleanup
+
+This document, and the scripts that will be used to do the work, refer to the volume :RAM5. If :RAM5 does not exist on your system, then either create one or change the scripts & file lists to reflect your requirements.
+At the time of writing, InstallMagic 1.0b5 could not load files from a HFS partition, therefore your :RAM5 should be initialised with ProDOS.
+
+
+Step 1) Build the source files to create the object files
+Information on how to prepare for this step is not found in this document.
+Please refer to the PrepareDevEnv and HowToBuild documents.
+The following steps expect that the directory heirarchy created by this process is available.
+
+Extract the latest version of material from CVS
+
+Review the version numbers of all components.
+Please refer to the VersionNumbers document.
+
+Build the source files for all components.
+The directories and filenames for all component link files are listed here:
+Marinetti:CDev:C.ALL.S 
+Marinetti:CDev:EGG.LINK.S 
+Marinetti:Init:I.ALL.S
+Marinetti:LinkLayers:DC:DC.ALL.S
+Marinetti:LinkLayers:MACIP:MacIP.ALL.S
+Marinetti:LinkLayers:PPP:PPP.ALL.S
+Marinetti:LinkLayers:PPPX:PPPx.ALL.S
+Marinetti:LinkLayers:SLIP:SLIP.ALL.S
+Tools:System:Crypto:CRYPTO.LNK.S
+Applications:Casper:Casper.LNK.S
+
+Start Merlin assembler and change to the source directory (use the 'pfx' disk command). Go into the editor ('F') and bring up the command box ('Open-Apple-O'). Type "link'<filename>".
+
+The following source files are a little different. They do not have a link file.
+Load the source file into the editor and press open-apple-6 to build it.
+Marinetti:Toolstub:Tool054.S
+Applications:Telnet:Telnet.S
+
+TCP Snooper needs to be compiled using Orca/C and Orca/M. Please refer to the following file for more information:
+Utilities:TCPSnooper:Readme
+
+** Test the components thoroughly before continuing with further steps.
+
+
+Step 2) Prepare the object files for packaging
+Execute the InstallerPrep script to copy the object files from the build  directories into a temporary directory that will be used for packaging.
+To execute the script, follow these directions:
+Start Merlin assembler and change to your MOSP source directory (use the 'pfx' disk command). Go into the editor ('F') and bring up the command box ('Open-Apple-O'). Type "link'tools/merlin/scripts/InstallerPrep".
+
+This script assumes that an earlier release of Marinetti has been installed on your system. It does this because MOSP does not contain all of the items required to create a complete release. You may like to view the script to see what it is doing. You may need to review the script to ensure that it covers all files that need to be installed.
+
+
+Step 3) Package the object files into an Installer for release
+Ensure that InstallMagic has been installed on your system.
+It can be obtained from Richard Bennett directly mailto:richardb@apple2.org
+
+Review the content of the following files to ensure that they cover all the files that need to be installed.
+tools/InstallMagic/MarinettiFiles
+tools/InstallMagic/MarinettiScript
+NB: The pathnames entered into both of these files are case sensitive and must match in order for the installer to be correctly built.
+
+Use InstallMagic to create an Application file that will install Marinetti into the desired locations on the users machine.
+Execute InstallMagic and follow the prompts as follows:
+Name the product "Marinetti x.xxx" where x.xxx is the version number e.g. 3.0d8
+Tick the "force user to reboot after install" option.
+Name the archive "Marinetti.x.xxx" where x.xxx is the version number.
+The resource file to use is tools/InstallMagic/MarinettiRes
+The script file to use is tools/InstallMagic/MarinettiScript
+The filelist file to use is tools/InstallMagic/MarinettiFiles
+
+
+Step 4) Release the Installer to the public
+Shrink the application file into an archive for distribution.
+If the release is to be made available to beta testers:
+Send the archive to tdiaz@apple2.org for placement into MOSP files area.
+Send notifications to the MOSP developers list and the Marinetti developers list.
+
+If the release is to be made available to everyone:
+Send the archive to tdiaz@apple2.org for placement into MOSP files area.
+Send the archive to tdiaz@apple2.org for placement onto the Marinetti home page.
+Send notification to news@a2central.com for announcement of availability.
+
+
+Step 5) Package the build files for release (optional)
+If some of the build files have changed, it will be necessary to create an archive of the current build files.
+
+Execute the CreateObjRel script to copy the object files from the build  directories into a temporary directory that will be used for packaging.
+To execute the script, follow these directions:
+Start Merlin assembler and change to your MOSP source directory (use the 'pfx' disk command). Go into the editor ('F') and bring up the command box ('Open-Apple-O'). Type "link'tools/merlin/scripts/CreateObjRel".
+
+
+Step 6) Release the build files to the public (optional)
+Shrink the :RAM5:Mosp hierarchy into an archive for distribution.
+Give the archive a name in the format of Mospx.xxx.SHK where x.xxx is the version number.
+Add the following comment to the archive:
+"Refer to the PrepareDevEnv document for more information on how to use the content of this archive."
+Send the archive to tdiaz@apple2.org for placement into MOSP files area.
+Send notifications to the MOSP developers list and the Marinetti developers list.
+
+
+Step 7) Cleanup
+If you made any changes to components that are maintained in CVS, then please put the new versions back into CVS!
+This includes (but is not limited to) modifications to 
+-version numbers of files or resources,
+-source files,
+-link files,
+-the scripts used in this process, 
+-documentation files for this process
+
+When everything is back in CVS, please tag the release.
+ 

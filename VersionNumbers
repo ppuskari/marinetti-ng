@@ -1,0 +1,46 @@
+Where to change version numbers
+
+Always do a complete rebuild after changing the version number.
+
+The standard Apple version number must be used, and the correct "d", "a"
+and "b" levels comformed to. See Apple IIgs technote #100 "Versionville"
+for more details.
+
+Init and CDEV *MUST* be changed together.
+
+Init:
+- BUILD.EQU.S 
+Label "VERASC" ASC pseudo op; change text of version number
+- I.RES 
+ rVersion resource ($1); change version number and copyright year
+
+* Note: Label VERSION is the master version number for tools, and should
+  always be 3.0. $8000 changed to $0000 once no longer development version.
+
+CDev:
+- C.RES
+   rTextForLETextBox2 resource ($1000); maintain the copyright year
+- C.RES
+   rCDEVFlags resource ($1); change version number and copyright year
+
+Link layers:
+- xxx.CODE.S
+   xxxVERSH and xxxVERSL labels; change version number
+- xxx.RES 
+   rVersion resource ($1); change version number and copyright year
+- xxx.CONFIG.S 
+   EGGALERT; maintain the copyright year
+
+Tool054:
+Tool054 reads the version number from the Init. Therefore it does not
+need to be changed or rebuilt.
+
+Casper:
+- Casper.S
+   Many locations within the source file
+- Casper.Res
+   rVersion resource ($1); change version number and copyright year
+
+Telnet:
+- Telnet.S
+   One location within the source file

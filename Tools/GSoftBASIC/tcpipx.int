@@ -1,0 +1,90 @@
+;----------------------------------------------------------------
+;
+; Marinetti TCP/IP internal interfaces for GSoft BASIC.
+;
+; By Andrew Roughan
+; This file is released to the public domain.
+;
+;----------------------------------------------------------------
+; NB: this file documents interfaces described in the
+; Marinetti Debugging Guide.
+;----------------------------------------------------------------
+; 2003-07-18 AJR Original version
+; 2007-06-06 AJR Added userRecord details [1700658]
+;----------------------------------------------------------------
+
+const trgCount = 1
+const strgCount = 1
+
+type userRecord
+    uwUserID as integer
+    uwDestIP as long
+    uwDestPort as integer
+    uwIP_TOS as integer
+    uwIP_TTL as integer
+
+    uwSourcePort as integer
+    uwLogoutPending as integer
+    uwICMPQueue as long
+    uwTCPQueue as long
+
+    uwTCPMaxSendSeg as integer
+    uwTCPMaxReceiveSeg as integer
+    uwTCPDataInQ as long
+    uwTCPDataIn as long
+    uwTCPPushInFlag as integer
+    uwTCPPushInOffset as long
+    uwTCPPushOutFlag as integer
+    uwTCPPushOutSEQ as long
+    uwTCPDataOut as long
+    uwSND_UNA as long
+    uwSND_NXT as long
+    uwSND_WND as integer
+    uwSND_UP as integer
+    uwSND_WL1 as long
+    uwSND_WL2 as long
+    uwISS as long
+    uwRCV_NXT as long
+    uwRCV_WND as integer
+    uwRCV_UP as integer
+    uwIRS as long
+    uwTCP_State as integer
+    uwTCP_StateTick as long
+    uwTCP_ErrCode as integer
+    uwTCP_ICMPError as integer
+    uwTCP_Server as integer
+    uwTCP_ChildList as long
+    uwTCP_ACKPending as integer
+    uwTCP_ForceFIN as integer
+    uwTCP_FINSEQ as long
+    uwTCP_MyFINACKed as integer
+    uwTCP_Timer as long
+    uwTCP_TimerState as integer
+    uwTCP_rt_timer as integer
+    uwTCP_2MSL_timer as integer
+    uwTCP_SaveTTL as integer
+    uwTCP_SaveTOS as integer
+    uwTCP_TotalIN as long
+    uwTCP_TotalOUT as long
+
+    uwUDP_Server as integer
+    uwUDPQueue as long
+    uwUDPError as integer
+    uwUDPErrorTick as long
+    uwUDPCount as long
+
+    uwTriggers(trgCount) as long
+    uwSysTriggers(strgCount) as long
+end type
+type userRecordPtr as pointer to userRecord
+type userRecordHandle as handle to userRecord
+
+Tool $36, $38 SUB      TCPIPSetMyIPAddress (&)
+Tool $36, $39 FUNCTION TCPIPGetDP as %
+Tool $36, $3A FUNCTION TCPIPGetDebugHex as %
+Tool $36, $3B SUB      TCPIPSetDebugHex (&)
+Tool $36, $3C FUNCTION TCPIPGetDebugTCP as %
+Tool $36, $3D SUB      TCPIPSetDebugTCP (&)
+Tool $36, $3E FUNCTION TCPIPGetUserRecord (%) as userRecordHandle
+Tool $36, $4D SUB      TCPIPRebuildModuleList
+

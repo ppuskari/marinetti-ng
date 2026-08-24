@@ -1,0 +1,40 @@
+Preparing the Development Environment
+
+Richard has been releasing source code as open source gradually.
+Not all source files have been released by Richard. This means that it is not possible to completely build Marinetti from the source files that reside in CVS. Richard has released source packages that include intermediary build files for the sources that have not been released. 
+
+In order to build Marinetti, it is necessary to link the latest sources from CVS with the intermediary build files.
+
+This document describes the steps that are necessary to combine the intermediary build files from the latest source package with the CVS hierarchy.
+
+This document, and the script that will be used to do the work, refer to the volume :RAM5. 
+If :RAM5: doesnt exist, then either create one or change the script to reflect your requirements.
+
+Retrieve sources from the CVS hierarchy by Checking Out the MOSP Module. Move this hierarchy to :RAM5.
+
+Download the latest Mospx.xxx.BXY source package from the files area of the Marinetti Project on Sourceforge.Net
+Extract the contents to :RAM5
+
+
+The resulting hierarchy on :RAM5 should be similar to:
+:RAM5:Mosp:build
+:RAM5:Mosp:Applications:...
+:RAM5:Mosp:Marinetti:...
+:RAM5:Mosp:Tools:...
+:RAM5:Mosp:ChangeLog
+:RAM5:Mosp:HowToBuild
+:RAM5:Mosp:PrepareDevEnv
+:RAM5:Mosp:ReleaseNotes
+:RAM5:Mosp:README
+:RAM5:Mosp:LICENCE
+:RAM5:Mosp:PPP:...
+
+Execute the CopyObject script to copy the intermediary build files from the :RAM5:Mosp:build directory into the corresponding locations of the CVS Source hierarchy.
+To execute the script, follow these directions:
+Start Merlin assembler and change to the :RAM5:Mosp directory (use the 'pfx' disk command). Go into the editor ('F') and bring up the command box ('Open-Apple-O'). Type "link'tools/merlin/scripts/copyobject".
+
+After the script has been executed, the :RAM5:Mosp:build and :RAM5:Mosp:PPP directories can be deleted because the latest versions of these files exist in the CVS hierarchy.
+
+Copy the :RAM5:Mosp hierarchy to your hard disk wherever you want to place your development area.
+
+Your development area is now ready. You may now like to read the HowToBuild document.

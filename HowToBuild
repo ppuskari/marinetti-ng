@@ -1,0 +1,129 @@
+===========================
+ Marinetti 3.0
+ TCP/IP for the Apple IIgs
+===========================
+
+ Copyright (C) 1997-2003 Richard Bennett
+
+ This library is free software; you can redistribute it and/or
+ modify it under the terms of the GNU Lesser General Public
+ License as published by the Free Software Foundation; either
+ version 2.1 of the License, or (at your option) any later version.
+
+ This library is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
+ Lesser General Public License for more details.
+
+ You should have received a copy of the GNU Lesser General Public
+ License along with this library; if not, write to the Free Software
+ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
+
+
+This file contains information on how to build Marinetti.
+
+Prerequisites
+-------------
+
+To build Marinetti, you will need an installed and functioning copy
+of Merlin 16+ Z08 for GS/OS. Merlin 16+ Z08 is Richard's unofficial
+custom version of Merlin 16+ 4.12, which is available from:
+
+http://macgui.com/downloads/?file_id=25486
+
+This archive only contains the Z08 changes, so you will first need to
+install the full Merlin 16+ package. Merlin 16+ was published by Roger Wagner Publishing, which is available from:
+
+http://macgui.com/downloads/?file_id=11104
+
+Optionally, you may also like to obtain Richard's commands for Merlin.
+Two commands in particular are very useful - SHOWRVERSION and SETRVERSION.
+They are available from Richard's web site:
+
+http://www.kashum.com/a2lib/m16.exe.bxy
+
+You will also need to install the tool interface macros for System
+Software 6.0.1. One source of these is Sheppy's site:
+http://www.sheppyware.net/downloads/downloads-gs/files/Macs.Sys6.SHK
+However, the Marinetti source files expect that the System 6.0.1 macros
+have been added to the appropriate Merlin macro files. Sheppy's System.6.macs.s
+file itself cannot be used as-is because of memory constraints during the build.
+You can either split up and add the System 6 macros to every Merlin macro file,
+or attempt to build and resolve any macro errors as you go.
+
+From here on down, it is assumed that Merlin Z08 is installed and working.
+
+Installing the tools
+--------------------
+
+All of the build tools are kept in the CVS repository. After you have
+extracted everything from the archive, move the following files to their
+final locations.
+
+Copy the file Tools:Merlin:Command:COPYFORK into the COMMANDS folder of your
+Merlin installation.
+
+Copy the file Tools:Merlin:Help.Files:COPYFORK into the HELP.FILES folder of
+your Merlin installation.
+
+Copy the file Tools:Merlin:Macros:RJBUTIL.MACS.S to your Merlin macros folder.
+
+Make sure Merlin has prefix 4 set to your macros folder. If using the PROJECT
+command, you can change the prefix from the disk command line and save the
+project back without having to reassemble your Merlin PARMS.S file.
+
+Your environment is now ready to build Marinetti.
+
+
+Working with the source files
+-----------------------------
+
+The source files are available in the MOSP CVS repository.
+Refer to the PrepareDevEnv document for details on how to obtain them.
+
+Once the CVS repository has been checked out, in order to work with a file
+properly within Merlin you'll need to load it into the Merlin editor, and
+convert it to Merlin source format.
+To do this, load the file, press OA-O to get the command box, and type
+"FIXS" (without the quotes). Now save the source by pressing OA-Q to
+get back to the main menu, and press "S" then "Y" (both without the quotes)
+to save.
+
+Source files are kept within the CVS repository as straight ASCII SRC files,
+so that CVS diff and browsing utilities may be used.
+
+
+Building the Marinetti Init
+---------------------------
+
+The Marinetti Init has a complex build process that involves assembling
+source files, linking to object files where the source is not yet released,
+creating a resource fork and copying the result to the installation
+location. This process is performed automatically by Merlin under the
+control of a link file.
+
+If you have followed the PrepareDevEnv document successfully then your development environment contains the folder Marinetti:Init that holds all
+the link files, the resource file, and all the currently open sourced source
+code.
+
+To build the Marinetti Init:
+
+1. Launch Merlin 16+, prefix to the folder containing the Marinetti code,
+ and enter the editor. (Press "D" and type "prefix xxx" to move around)
+
+2. Once in the editor, press OA-O to get the command box.
+
+3. Type: link'i.all
+
+4. If everything seems OK, you have just assembled the included source,
+ linked it with the other modules, generated the permanent init (PIF),
+ copied the resources into it, and copied the entire thing into your
+ *:System:System.Setup folder.
+
+5. To just assemble the files that have changed, type: link'i.mods
+ To do just the link (no assembly), type: link'i
+
+Other components of Marinetti have a similar process. The HowToRelease
+document has a list of the components and their build files.
+
+=END=

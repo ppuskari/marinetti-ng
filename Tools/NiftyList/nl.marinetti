@@ -1,0 +1,151 @@
+********************************************
+* 1998-09-01 RJB Original version
+* 2003-07-06 AJR Update to v2.1 of TCP/IP interfaces
+* 2003-07-18 AJR Added Marinetti internal interfaces
+* 2008-01-14 AJR Fix TCPIPSetDNRTimeouts definition
+********************************************
+
+To add Marinetti support to Nifty List, load the NList.Data file into a text editor, and make the
+following changes.
+Find the line starting "2E26 MCSetVolume(..." and add the following after it:
+
+0036 === Marinetti ===
+0136 TCPIPBootInit()
+0236 TCPIPStartUp()
+0336 TCPIPShutDown()
+0436 TCPIPVersion():Vers
+0536 TCPIPReset()
+0636 TCPIPStatus():ActFlg
+0836 TCPIPLongVersion():rVersion/4
+0936 TCPIPGetConnectStatus():connectedFlag
+0A36 TCPIPGetErrorTable():@errTablePtr
+0B36 TCPIPGetReconnectStatus():reconnectFlag
+0C36 TCPIPReconnect(@displayPtr)
+0D36 TCPIPConvertIPToHex(@cvtRecPtr,@ddippstring)
+0E36 TCPIPConvertIPToASCII(ipaddress/4,@ddpstring,flags):strlen
+0F36 TCPIPGetMyIPAddress():ipaddress/4
+1036 TCPIPGetConnectMethod():method
+1136 TCPIPSetConnectMethod(method)
+1236 TCPIPConnect(@displayPtr)
+1336 TCPIPDisconnect(forceflag,@displayPtr)
+1436 TCPIPGetMTU():mtu
+1536 TCPIPValidateIPCString(@cstringPtr):validFlag
+1636 TCPIPGetConnectData(userid,method):H
+1736 TCPIPSetConnectData(method,H)
+1836 TCPIPGetDisconnectData(userid,method):H
+1936 TCPIPSetDisconnectData(method,H)
+1A36 TCPIPLoadPreferences()
+1B36 TCPIPSavePreferences()
+1C36 TCPIPGetDNS(@DNSRecPtr)
+1D36 TCPIPSetDNS(@DNSRecPtr)
+1E36 TCPIPGetTuningTable(@tunePtr)
+1F36 TCPIPSetTuningTable(@tunePtr)
+2036 TCPIPCancelDNR(@dnrBufferPtr)
+2136 TCPIPDNRNameToIP(@nameptr,@dnrBufferPtr)
+2236 TCPIPPoll()
+2336 TCPIPLogin(userid,destip/4,destport,defaultTOS,defaultTTL):ipid
+2436 TCPIPLogout(ipid)
+2536 TCPIPSendICMP(ipid,@messagePtr,messageLen)
+2636 TCPIPSendUDP(ipid,@udpPtr,udpLen)
+2736 TCPIPGetDatagramCount(ipid,protocol):dgmCount
+2836 TCPIPGetNextDatagram(ipid,protocol,flags):H
+2936 TCPIPGetLoginCount():loginCount
+2A36 TCPIPSendICMPEcho(ipid,seqNum)
+2B36 TCPIPReceiveICMPEcho(ipid):seqNum
+2C36 TCPIPOpenTCP(ipid):tcpError
+2D36 TCPIPWriteTCP(ipid,@dataPtr,dataLength/4,pushFlag,urgentFlag):tcpError
+2E36 TCPIPReadTCP(ipid,buffType,buffData/4,buffLen/4,@rrBuffPtr):tcpError
+2F36 TCPIPCloseTCP(ipid):tcpError
+3036 TCPIPAbortTCP(ipid):tcpError
+3136 TCPIPStatusTCP(ipid,@srBuffPtr):tcpError
+3236 TCPIPGetSourcePort(ipid):sourcePort
+3336 TCPIPGetTOS(ipid):TOS
+3436 TCPIPSetTOS(ipid,TOS)
+3536 TCPIPGetTTL(ipid):TTL
+3636 TCPIPSetTTL(ipid,TTL)
+3736 TCPIPSetSourcePort(ipid,sourcePort)
+3836 TCPIPSetMyIPAddress(ipaddress/4)
+3936 TCPIPGetDP():dp
+3A36 TCPIPGetDebugHex():debugFlag
+3B36 TCPIPDebugHex(debugFlag)
+3C36 TCPIPGetDebugTCP():debugFlag
+3D36 TCPIPDebugTCP(debugFlag)
+3E36 TCPIPGetUserRecord(ipid):userRecEntry/4
+3F36 TCPIPConvertIPCToHex(@cvtRecPtr,@ddipcstring)
+4036 TCPIPSendIPDatagram(@datagramPtr)
+4136 TCPIPConvertIPToClass(ipaddress/4):class
+4236 TCPIPGetConnectMsgFlag():conMsgFlag
+4336 TCPIPSetConnectMsgFlag(conMsgFlag)
+4436 TCPIPGetUsername(@unBuffPtr)
+4536 TCPIPSetUsername(@usernamePtr)
+4636 TCPIPGetPassword(@pwBuffPtr)
+4736 TCPIPSetPassword(@passwordPtr)
+4836 TCPIPValidateIPString(@pstringPtr):validFlag
+4936 TCPIPGetUserStatistic(ipid,statisticNum):statistic/4
+4A36 TCPIPGetLinkVariables():@variablesPtr
+4B36 TCPIPEditLinkConfig(connectHandle/4,disconnectHandle/4)
+4C36 TCPIPGetModuleNames():@moduleListPtr
+4D36 TCPIPRebuildModuleList()
+4E36 TCPIPListenTCP(ipid):tcpError
+4F36 TCPIPAcceptTCP(ipid,reserved):newipid
+5036 TCPIPSetNewDestination(ipid,destip/4,destport)
+5136 TCPIPGetHostName(@hnBuffPtr)
+5236 TCPIPSetHostName(@hostNamePtr)
+5336 TCPIPStatusUDP(ipid,@udpVarsPtr)
+5436 TCPIPGetLinkLayer(@linkInfoBlkPtr)
+5536 TCPIPPtrToPtr(@from,@to,len/4)
+5636 TCPIPPtrToPtrNeg(@fromend,@toend,len/4)
+5736 TCPIPGetAuthMessage(userid):authMsgHandle/4
+5836 TCPIPConvertIPToCASCII(ipaddress/4,@ddcstring,flags):strlen
+5936 TCPIPMangleDomainName(flags,@dnPstringPtr):port
+5A36 TCPIPGetAliveFlag():aliveFlag
+5B36 TCPIPSetAliveFlag(aliveFlag)
+5C36 TCPIPGetAliveMinutes():aliveMinutes
+5D36 TCPIPSetAliveMinutes(aliveMinutes)
+5E36 TCPIPReadLineTCP(ipid,@delimitStrPtr,buffType,buffData/4,buffLen/4,@rrBuffPtr):tcpError
+5F36 TCPIPGetBootConnectFlag():bootConnectFlag
+6036 TCPIPSetBootConnectFlag(bootConnectFlag)
+6136 TCPIPSetUDPDispatch(ipid,dispatchFlag)
+6236 TCPIPGetDestination(ipid,@destRecPtr)
+6336 TCPIPGetUserEventTrigger(triggerNumber,ipid):triggerProcPtr/4
+6436 TCPIPSetUserEventTrigger(triggerNumber,ipid,@triggerProcPtr)
+6536 TCPIPGetSysEventTrigger(triggerNumber):triggerProcPtr/4
+6636 TCPIPSetSysEventTrigger(triggerNumber,@triggerProcPtr)
+6736 TCPIPGetDNRTimeouts(@dnrTimeoutsBuffPtr)
+6836 TCPIPSetDNRTimeouts(@dnrTimeoutsBuffPtr)
+
+Find the line which contains "2613 mcCallNotSupported", and add the following after it.
+
+3601 terrBADIPID
+3602 terrNOCONNECTION
+3603 terrNORECONDATA
+3604 terrLINKERROR
+3605 terrSCRIPTFAILED
+3606 terrCONNECTED
+3607 terrSOCKETOPEN
+3608 terrINITNOTFOUND
+3609 terrVERSIONMISMATCH
+360A terrBADTUNETABLELEN
+360B terrIPIDTABLEFULL
+360C terrNOICMPQUEUED
+360D terrLOGINSPENDING
+360E terrTCPIPNOTACTIVE
+360F terrNODNSERVERS
+3610 terrDNRBUSY
+3611 terrNOLINKLAYER
+3612 terrBADLINKLAYER
+3613 terrENJOYCOKE
+3614 terrNORECONSUPPORT
+3615 terrUSERABORTED
+3616 terrBADUSERPASS
+3617 terrBADPARAMETER
+3618 terrBADENVIRONMENT
+3619 terrNOINCOMING
+361A terrLINKBUSY
+361B terrNOLINKINTERFACE
+361C terrNOLINKRESPONSE
+361D terrNODNRPENDING
+361E terrBADALIVEMINUTES
+361F terrBUFFERTOOSMALL
+3620 terrNOTSERVE
+3621 terrBADTRIGGERNUM

@@ -1,0 +1,23 @@
+Marinetti Open Source Project
+
+Release Notes
+
+The files in this CVS repository have been released by Richard Bennett as
+Open Source. The structure of the CVS repository does not match the
+structure of the source code as Richard released it.
+Rather, the structure of the CVS repository has been developed to hold the
+source code in a way that is more descriptive and clear for the developer.
+This decision was made so that it would not be necessary to move released
+files and directories around inside the CVS repository as the project
+evolves.
+
+The source files in the CVS repository have been taken from Richard's
+original release packages and have been changed to reflect the new
+directory structure.
+
+Andrew Roughan - 13 March 2002
+
+
+
+
+ 

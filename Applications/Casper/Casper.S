@@ -1,0 +1,1122 @@
+ LST OFF
+ REL
+ mx 0
+
+*=================================================
+*
+* Casper - Apple IIgs web server
+*
+* Copyright (C) 1998-2003 Richard Bennett
+*
+* This program is free software; you can redistribute it and/or
+* modify it under the terms of the GNU General Public License
+* as published by the Free Software Foundation; either version 2
+* of the License, or (at your option) any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* General Public License for more details.
+*
+* You should have received a copy of the GNU General Public
+* License along with this program; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*
+*=================================================
+*
+* 2001.05.20 RJB - Initial release as open source
+* 2002.09.05 AJR - Fixed stack imbalance around _TCPIPAcceptTCP
+*                - Display server directory location
+*
+*=================================================
+
+ USE 4/RJBUTIL.MACS
+ USE 4/LOCATOR.MACS
+ USE 4/MISC.MACS
+ USE 4/MEM.MACS
+ USE 4/INT.MACS
+ USE 4/TEXT.MACS
+ USE 4/EVENT.MACS
+ USE 4/DESK.MACS
+ USE 4/TCPIP.MACS
+
+ USE ../../MARINETTI/EQUATES/TCPIP.EQU
+
+ EXT ADDPSTRHANDLE,CLSTRIP
+
+EYECATCHERS = 1
+
+DESTPORT = 80 ;23=telnet, 80=http
+
+DBGMSG MAC
+ do EYECATCHERS
+ IMBED ]1
+ fin
+ <<<
+
+ DUM 0
+TMPHANDLE ADRL 0
+TMPTR ADRL 0
+TMPLEN ADRL 0
+
+LINEPTR DA 0 ;Pointer to where up to in command line
+TOKENPTR DA 0 ;Work pointer in token parser
+FILEHANDLE ADRL 0 ;...to loaded file
+HTTPVERSION DA 0 ;0000=none, 0009=0.9, 0100=1.0, 0101=1.1
+
+GETHEADFLAG DA 0 ;0000=HEAD, 8xxx=GET
+
+MYID DA 0
+
+MYIP ADRL 0
+MASTERIPID DA 0
+WORKIPID DA 0 ;Current one working on
+
+ DEND
+
+* HTTP error codes
+
+HTTPBADREQUEST = 400
+HTTPNOTFOUND = 404
+HTTPINTERNAL = 500
+HTTPBADMETHOD = 501
+HTTPBUSY = 503
+
+*
+
+INIT BRL STARTUP
+
+SERVER ~WriteLine #:TITLE1STR
+ ~WriteLine #:TITLE2STR
+ ~WriteLine #:TITLE4STR
+ ~WriteLine #:TITLE5STR
+ ~WriteLine #:TITLE6STR
+ ~WriteLine #:TITLE1STR
+
+* Show tool set version
+
+ ~TCPIPVersion
+ PHL #:VSTR+32
+ PEA 4
+ _Int2Hex
+ ~WriteLine #:VSTR
+
+* Show Marinetti rVersion
+
+ PEA 0
+ ~TCPIPLongVersion
+ PHL #:LTV
+ _VersionString
+ ~WriteString #:LVSTR
+ ~WriteLine #:LTV
+
+* Show files location
+* This will fail for strings > 255 characters
+ LDA EXPANDEDPATH ;GS/OS string length
+ XBA
+ STA EXPANDEDPATH ;P-String length
+ ~WriteLine #:PATHNAME
+ ~WriteLine #EXPANDEDPATH+1 ;P-String
+
+* If not connected, then quit
+
+ ~TCPIPGetConnectStatus
+ PLA
+ BNE :CONNECTED
+
+ ~WriteLine #:NOCONSTR
+:KEYQUIT ~ReadChar #0
+ PLS
+ RTS
+
+:LOGOUTKEYQUIT PEI MASTERIPID
+ _TCPIPLogout
+ BRA :KEYQUIT
+
+:CONNECTED
+
+* Show various variables
+
+ ~WriteString #:HOSTNAMESTR
+ ~TCPIPGetHostName #THELINE
+ ~WriteLine #THELINE
+ ~WriteString #:IPSTR
+ ~TCPIPGetMyIPAddress
+ PLXA MYIP
+ JSR PRIP
+ ~WriteLine #NULL
+
+* Login and get an IPID, then set my local port number
+
+ ~WriteCString #:LOGINASC
+ PHS 2
+ ~TCPIPLogin MYID;#0;#0;#0;#64
+ LDA 1,S
+ STA MASTERIPID
+ _HexIt
+ PLXA :IPIDSTR+1
+ ~WriteLine #:IPIDSTR
+
+ ~WriteCString #:SETPORTASC
+ ~WriteLine #NULL
+ PEI MASTERIPID
+ PEA DESTPORT
+ _TCPIPSetSourcePort
+ BCC :PORTOK
+ ~WriteLine #:DUPLICATEPORTSTR
+ BRL :LOGOUTKEYQUIT
+:PORTOK
+
+* Issue listen request
+
+ PHS
+ PEI MASTERIPID
+ _TCPIPListenTCP
+ PLS
+
+* Main loop
+
+:TOPLOOP ~WriteLine #:READYSTR
+
+* Wait for incomings
+
+:LOOP
+ SEP $20
+ LDA >$E0C000
+ REP $20
+ BMIL :OUT
+
+ _TCPIPPoll
+
+ PHS
+ PEI MASTERIPID
+ PEA #$0000 ;Reserved
+ _TCPIPAcceptTCP
+ PLA
+ BCS :LOOP
+ STA WORKIPID
+
+* Got one, wait for it to go ESTABLISHED
+
+:LOOP1 _TCPIPPoll
+ PHS
+ PEI WORKIPID
+ PHL #:SRBUFFER
+ _TCPIPStatusTCP
+ PLA
+ LDA :SRBUFFER+srState
+ CMP #tcpsESTABLISHED
+ BNE :LOOP1
+
+* OK, got an established
+
+ ~WriteString #:INCOMING1
+ ~TCPIPGetDestination WORKIPID;#:DESTREC
+ LXA :DESTREC+drDestIP
+ JSR PRIP
+ ~WriteString #:INCOMING2
+ LDA :DESTREC+drDestPort
+ PHA
+ PHL #THELINE ;temp stuff
+ PEA 5
+ PEA 0
+ _Int2Dec
+ PHL #THELINE
+ PEA 5
+ JSR CLSTRIP
+ ~WriteCString #THELINE
+ ~WriteLine #NULL
+
+ ~WriteLine #:READLINESTR
+
+ JSR READALINE
+ BEQL :OUT
+
+ LDA #THELINE
+ STA LINEPTR
+
+ LDY #0
+ JSR GETWORD
+ BCSL :BADREQUEST
+ LDA #CMDTBL
+ JSR TOKENIZE
+ BCSL :BADMETHOD
+
+ CMP #1
+ BEQ :GET
+ CMP #2
+ BEQ :HEAD
+
+ BRL :BADMETHOD
+
+:HEAD STZ GETHEADFLAG
+ BRA :JOINMETHOD
+
+:GET SEC
+ ROR GETHEADFLAG
+
+:JOINMETHOD JSR GETWORD
+ BCSL :NOURI
+ JSR BUILDPATH
+ JSR GETWORD
+ BCS :SIMPLEGET
+ LDA #VERSIONTBL
+ JSR TOKENIZE
+ BCSL :BADVERSION
+ STA HTTPVERSION
+ JSR SETDEFAULTHEADERS
+ JSR GATHERHEADERS
+ BCSL :ERROR
+ JSR LOADFILE
+ BCC :MULTIGETOK
+ LDA #HTTPNOTFOUND
+ JSR COPYERRORTOHANDLE
+:MULTIGETOK JSR DUMPMIMEHEADERS
+ LDA GETHEADFLAG
+ BEQ :DONEHEAD
+ JSR DUMPHANDLE
+:DONEHEAD JSR PURGEHANDLE
+ BRL :DONEREQUEST
+
+:SIMPLEGET STZ HTTPVERSION
+:GOGET JSR LOADFILE
+ BCC :SIMPLEGETOK
+ LDA #HTTPNOTFOUND
+ JSR COPYERRORTOHANDLE
+:SIMPLEGETOK LDA GETHEADFLAG
+ BEQ :DONEHEAD
+ JSR DUMPHANDLE
+ JSR PURGEHANDLE
+ BRL :DONEREQUEST
+
+* First loop until all data sent
+
+:DONEREQUEST ~TCPIPPoll
+ PHS
+ PEI WORKIPID
+ PHL #:SRBUFFER
+ _TCPIPStatusTCP
+ PLS
+ LDA :SRBUFFER+srSndQueued
+ ORA :SRBUFFER+srSndQueued+2
+ BNE :DONEREQUEST
+
+* Now close it
+
+ ~TCPIPPoll
+ PHS
+ PEI WORKIPID
+ _TCPIPCloseTCP
+ PLS
+
+* And wait to logout
+
+]L1 _TCPIPPoll
+ PHS
+ PEI WORKIPID
+ PHL #:SRBUFFER
+ _TCPIPStatusTCP
+ PLS
+ LDA :SRBUFFER+srState
+ BEQ :CLOSED
+ CMP #tcpsTIMEWAIT
+ BNE ]L1
+:CLOSED
+
+ PEI WORKIPID
+ _TCPIPLogout
+
+ BRL :TOPLOOP
+
+*-------------------------------------------------
+* Errors for simple get
+*-------------------------------------------------
+
+:NOURI
+:BADREQUEST LDA #HTTPBADREQUEST
+:ERROR JSR COPYERRORTOHANDLE
+ JSR DUMPHANDLE
+ BRL :DONEREQUEST
+
+:BADVERSION
+:BADMETHOD LDA #HTTPBADMETHOD
+ BRA :ERROR
+
+:NOTFOUND LDA #HTTPNOTFOUND
+ BRA :ERROR
+
+:OUT ~WriteLine #:QUITSTR
+ PHS
+ PEI MASTERIPID
+ _TCPIPCloseTCP
+ PLS
+ PEI MASTERIPID
+ _TCPIPLogout
+
+ RTS
+
+:NOCONSTR STR 'TCP/IP not currently connected.'
+
+:TITLE1STR STR '----------------------------------'
+:TITLE2STR STR 'Casper 1.0.1 Apple IIGS Web Server'
+:TITLE4STR STR 'Copyright (c) 2003 Richard Bennett'
+:TITLE5STR STR 'Released under the terms of the'
+:TITLE6STR STR 'GNU General Public License (GPL)'
+
+:LVSTR STR 'Using Marinetti v'
+:LTV DS 1+9
+
+:VSTR STR 'Using TCP/IP tool set version $XXXX.'
+
+:HOSTNAMESTR STR 'Hostname: '
+:IPSTR STR 'Host IP address: '
+:PATHNAME STR 'Serving files from location: '
+:READYSTR STR '[ == Waiting for connections == ]'
+
+:LOGINASC ASC 'Marinetti login. IPID=$',00
+:IPIDSTR STR 'xxxx.'
+
+:SETPORTASC ASC 'Setting http server port to '
+ ASC #DESTPORT
+ ASC '.',00
+
+:QUITSTR STR 'Server shut down.'
+:BADMETHODSTR STR 'Unknown method: '
+:NOMETHODSTR STR 'No method specified.'
+:NOURISTR STR 'No URI specified.'
+
+:DUPLICATEPORTSTR STR 'This port is already being used.'
+
+:SRBUFFER DS srlen
+
+:READLINESTR STR 'Reading line from client.'
+
+:INCOMING1 STR 'Request from IP address '
+:INCOMING2 STR ', port '
+
+:DESTREC DS drlen
+
+NULL DFB 0
+
+LINELEN DA 0 ;Length of the line
+THELINE DS 200+2 ;2=cr,lf
+
+inAUTHORIZATION DS 2+100
+inFROM DS 2+100
+inIFMODIFIED DS 2+100
+inREFERER DS 2+100
+inUSERAGENT DS 2+100
+
+WRITEWORD LDA WORDLEN
+ PHA
+ XBA
+ STA WORDLEN
+ ~WriteString #WORDLEN+1
+ PLW WORDLEN
+ RTS
+
+PATHNAME DA 0
+ ASC '2/'
+FILENAME DS 100
+
+LOADFILE JSL $E100A8
+ DA $2010
+ ADRL :OPEN
+ BCS :ERROR
+ LDA :OPEN+2
+ STA :READ+2
+ STA :CLOSE+2
+ LDA :FILETYPE
+ CMP #$0F ;Directory?
+ BEQ :DOFOLDER
+ LDA :EOF
+ ORA :EOF+2
+ BEQ :NOFILE
+ PHS 2
+ LDA :EOF+2
+ PHA
+ STA :LENGTH+2
+ LDA :EOF
+ PHA
+ STA :LENGTH
+ ~MMStartUp
+ PEA $C018
+ PEA 0
+ PEA 0
+ _NewHandle
+ PLXA FILEHANDLE
+ LDA [FILEHANDLE]
+ STA :BUFFER
+ LDY #2
+ LDA [FILEHANDLE],Y
+ STA :BUFFER+2
+ JSL $E100A8
+ DA $2012
+ ADRL :READ
+:CLOSEIT JSL $E100A8
+ DA $2014
+ ADRL :CLOSE
+ RTS
+:NOFILE JSR :CLOSEIT
+:ERROR SEC
+ RTS
+
+* Folder must have "/" on the end. This URI doesn't.
+
+:DOFOLDER JSR :CLOSEIT
+
+ PHS 2
+ PHL #0
+ ~MMStartUp
+ PEA $0018
+ PEA 0
+ PEA 0
+ _NewHandle
+ PLXA FILEHANDLE
+
+ PHL #:FOLDSTR1
+ PHXA
+ JSL ADDPSTRHANDLE
+
+ PHL #:FOLDSTR2
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PHL #:FOLDSTR3
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PHW PATHNAME+1
+ LDA PATHNAME
+ DEC
+ XBA
+ STA PATHNAME+1
+ PHL #PATHNAME+2
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+ PHL #:SLASH
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+ PLW PATHNAME+1
+
+ PHL #:FOLDSTR4
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PHL #ERRORHTML6
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PHL #ERRORHTML7
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ CLC
+ RTS
+
+:FOLDSTR1 STR '<html><head><title>HTTP ERROR: 301 Moved permanently</title>'
+:FOLDSTR2 STR '</head><body><h1>HTTP ERROR: 301 Moved permanently</h1>'
+:FOLDSTR3 STR '<p>The document has moved <a href="'
+:FOLDSTR4 STR '">here</a></p>'
+:SLASH STR '/'
+
+:OPEN DA 12,0
+ ADRL PATHNAME
+ DA 1,0,0
+:FILETYPE DA 0
+ ADRL 0
+ DA 0
+ DS 8+8
+ ADRL 0
+:EOF ADRL 0
+
+:READ DA 4,0
+:BUFFER ADRL 0
+:LENGTH ADRL 0,0
+
+:CLOSE DA 1,0
+
+READALINE DBGMSG READALINE
+]L1 ~TCPIPPoll
+ ~TCPIPReadLineTCP WORKIPID;#CRSTR;#0;#THELINE;#200;#RRBUFFER
+ PLS
+ LDA RRBUFFER+rlrIsDataFlag ;Anything?
+ BEQ ]L1
+ LDA RRBUFFER+rlrBuffCount
+ PHA
+ XBA
+ STA LINELEN
+ ~WriteLine #LINELEN+1
+ PLA
+ STA LINELEN
+ RTS
+
+CRSTR DFB 2,$D,$A
+
+RRBUFFER DS rlrlen
+
+PURGEHANDLE PZL FILEHANDLE
+ _DisposeHandle
+ RTS
+
+SETDEFAULTHEADERS DBGMSG SETDEFAULTHEADERS
+ STZ inAUTHORIZATION
+ STZ inFROM
+ STZ inIFMODIFIED
+ STZ inREFERER
+ STZ inUSERAGENT
+ RTS
+
+GATHERHEADERS DBGMSG GATHERHEADERS
+ JSR READALINE
+ BEQ :DONE
+ LDY #0
+ JSR GETWORD
+ BCS :BAD
+ LDA #INHEADERTBL
+ JSR TOKENIZE
+ BCS GATHERHEADERS ;Ignore unknowns
+
+;commands go here...
+
+
+ BRA GATHERHEADERS
+:DONE CLC
+ RTS
+:BAD LDA #HTTPBADREQUEST
+ SEC
+ RTS
+
+INHEADERTBL STR 'Date:' ;General
+ DA 1
+ STR 'Pragma:' ;General
+ DA 2
+ STR 'Authorization:' ;Request
+ DA 3
+ STR 'From:' ;Request
+ DA 4
+ STR 'If-Modified-Since:' ;Request
+ DA 5
+ STR 'User-Agent:' ;Request
+ DA 6
+ STR 'Allow:' ;Entity
+ DA 7
+ STR 'Content-Encoding:' ;Entity
+ DA 8
+ STR 'Content-Length:' ;Entity
+ DA 9
+ STR 'Content-Type:' ;Entity
+ DA 10
+ STR 'Expires:' ;Entity
+ DA 11
+ STR 'Last-Modified:' ;Entity
+ DA 12
+ DFB 0
+
+*-------------------------------------------------
+* DUMPMIMEHEADERS
+*-------------------------------------------------
+
+DUMPMIMEHEADERS DBGMSG DUMPMIMEHEADERS
+ LDA #:H1
+ JSR SENDPSTRINGLINE
+ LDA #:H2
+ JSR SENDPSTRINGLINE
+ LDA #:H3
+ JSR SENDPSTRINGLINE
+ LDA #:H4
+ JSR SENDPSTRING
+ LDY #8+2
+ LDA [FILEHANDLE],Y
+ PHA
+ DEY
+ DEY
+ LDA [FILEHANDLE],Y
+ PHA
+ PHL #:WORKSTR+1
+ PEA 8
+ PEA 0
+ _Long2Dec
+ SEP $20
+ LDX #1
+]L1 LDA :WORKSTR,X
+ CMP #$20
+ BNE :GOTIT
+ INX
+ BRA ]L1
+:GOTIT REP $20
+ TXA
+ EOR #-1
+ INC
+ CLC
+ ADC #9
+ SEP $20
+ STA :WORKSTR-1,X
+ REP $20
+ TXA
+ CLC
+ ADC #:WORKSTR-1
+ JSR SENDPSTRINGLINE
+ LDA #:H5
+ JSR SENDPSTRINGLINE
+ LDA #NULL
+ JSR SENDPSTRINGLINE
+ RTS
+
+:WORKSTR DS 9
+
+:H1 STR 'HTTP/1.0 200 OK'
+:H2 STR 'Date:'
+:H3 STR 'Server: Casper/1.0.1'
+:H4 STR 'Content-Length: '
+:H5 STR 'Content-Type: text/html'
+
+*-------------------------------------------------
+* Parsing routines
+*-------------------------------------------------
+
+BUILDPATH DBGMSG BUILDPATH
+ PHY
+ SEP $20
+ LDX #0
+ TXY
+ LDA WORD,X
+ CMP #'/'
+ BNE :DOPATH
+ INX
+:DOPATH PHX
+:PATHLOOP LDA WORD,X
+:STOREPATH STA FILENAME,Y
+ INY
+ INX
+ CPX WORDLEN
+ BCC :PATHLOOP
+ REP $20
+ LDA WORDLEN
+ SEC
+ SBC 1,S
+ CLC
+ ADC #2 ;'2/'
+ STA PATHNAME
+ PLX
+ TAX
+ SEP $20
+ LDA PATHNAME+2-1,X
+ CMP #'/'
+ BNE :NOSLASH
+ LDY #0
+]L1 LDA :INDEXHTML,Y
+ STA PATHNAME+2,X
+ INX
+ INY
+ CPY #10
+ BCC ]L1
+ LDA PATHNAME
+ CLC
+ ADC #10
+ STA PATHNAME
+:NOSLASH REP $20
+ PLY
+ RTS
+
+:INDEXHTML ASC 'index.html'
+
+GETWORD DBGMSG GETWORD
+ CPY LINELEN
+ BCC :GETLOOP
+ RTS
+:GETLOOP SEP $20
+ LDA (LINEPTR),Y
+ AND #$7F
+ CMP #$0D
+ BEQ :NOWORD
+ CMP #$20
+ BEQ :GW1
+ CMP #'"'
+ BEQ :DOQUOTE
+ CMP #"'"&$7F
+ BNE :NOQ
+:DOQUOTE STA :QUOTE
+ LDX #0
+ BRA :GWLOOP
+:NOQ STA WORD
+ LDA #$20
+ STA :QUOTE
+ LDX #1
+:GWLOOP INY
+ CPY LINELEN
+ BCS :ENDW
+:NEXTGW LDA (LINEPTR),Y
+ AND #$7F
+ CMP #$0D
+ BEQ :ENDW
+ CMP :QUOTE
+ BEQ :ENDW1
+ STA WORD,X
+ INX
+ BRA :GWLOOP
+:ENDW1 INY
+:ENDW STX WORDLEN
+ CPX #0 ;Could be zero if quotes were used...
+ BEQ :NOWORD1
+ REP $20
+ CLC
+ RTS
+:NOWORD1 DEY
+:NOWORD REP $20
+ INY
+ SEC
+ RTS
+:GW1 INY
+ CPY LINELEN
+ BCS :NOWORD
+ BRA :GETLOOP
+
+:QUOTE DFB 0
+
+WORDLEN DA 0 ;These two must be together
+WORD DS 100
+
+TOKENIZE DBGMSG TOKENIZE
+ PHY
+ STA TOKENPTR
+:TOKLOOP SEP $30
+ LDA (TOKENPTR)
+ BEQ :TOKDONE
+ CMP WORDLEN
+ BNE :NEXT
+ TAY
+]L1 LDA WORD-1,Y
+ AND #$7F
+ CMP #'a'
+ BCC :UOK
+ CMP #'z'+1
+ BCS :UOK
+ AND #$5F
+:UOK CMP (TOKENPTR),Y
+ BNE :NEXT1
+ DEY
+ BNE ]L1
+ LDA (TOKENPTR)
+ TAY
+ INY
+ REP $30
+ LDA (TOKENPTR),Y
+ PLY
+ CLC
+ RTS
+ mx %10
+:NEXT1 LDA (TOKENPTR)
+:NEXT REP $30
+ AND #$FF
+ CLC
+ ADC #3
+ ADC TOKENPTR
+ STA TOKENPTR
+ BRA :TOKLOOP
+ mx %10
+:TOKDONE REP $30
+ LDA #0
+ PLY
+ SEC
+ RTS
+
+CMDTBL STR 'GET'
+ DA 1
+ STR 'HEAD'
+ DA 2
+ DFB 0
+
+VERSIONTBL STR 'HTTP/0.9'
+ DA $0009
+ STR 'HTTP/1.0'
+ DA $0100
+ STR 'HTTP/1.1'
+ DA $0101
+ DFB 0
+
+*-------------------------------------------------
+* Startup stuff
+*-------------------------------------------------
+
+STARTUP PHK
+ PLB
+ ~MMStartUp
+ PLW MYID
+ _MTStartUp
+ _TextStartUp
+; ~SetOutPutDevice #1;#3
+; ~SetInGlobals #$7F;#0
+; ~SetOutGlobals #$7F;#0
+ _IMStartUp
+
+ ~LoadOneTool #$36;#$200
+ BCS :NOTCP
+ _TCPIPStartup
+ BCS :NOTCP
+
+ JSL $E100A8
+ DA $2009
+ ADRL :SETPREFIX
+
+ JSL $E100A8
+ DA $200E
+ ADRL :EXPANDPATH
+
+ JSR SERVER
+ BRA :OUT
+
+:NOTCP ~WriteLine #:NOTCPSTR
+ ~ReadChar #0
+ PLS
+
+:OUT _TCPIPShutdown
+ _IMShutDown
+ _TextShutDown
+ _MTShutDown
+ ~MMShutDown MYID
+ JSL $E100A8
+ DA $2029
+ ADRL :QUIT
+ BRA *
+:QUIT DA 2
+ ADRL 0
+ DA 0
+
+:NOTCPSTR STR 'No TCP/IP tool found.'
+
+:SETPREFIX DA 2,2
+ ADRL :PREFIX
+
+:PREFIX STRL '1:Web.data'
+
+:EXPANDPATH DA 2
+ ADRL :PREFIX
+ ADRL :RESULTBUFFER
+
+:RESULTBUFFER DA 255
+EXPANDEDPATH DS 255
+
+*-------------------------------------------------
+* Coms stuff
+*-------------------------------------------------
+
+* DUMPHANDLE - This sends the data in the handle back to the caller
+
+DUMPHANDLE DBGMSG DUMPHANDLE
+ PHS
+ PEI WORKIPID
+ LDY #2
+ LDA [FILEHANDLE],Y
+ PHA
+ LDA [FILEHANDLE]
+ PHA
+ LDY #8+2
+ LDA [FILEHANDLE],Y
+ PHA
+ DEY
+ DEY
+ LDA [FILEHANDLE],Y
+ PHA
+ PEA 0
+ PEA 0
+ _TCPIPWriteTCP
+ PLS
+ RTS
+
+SENDPSTRINGLINE DBGMSG SENDSPTRINGLINE
+ JSR SENDPSTRING
+ LDA #CRSTR
+SENDPSTRING DBGMSG SENDPSTRING
+ STA :MOD+1
+ PHS
+ PEI WORKIPID
+ PEA ^*
+ INC
+ PHA
+ PEA 0
+:MOD LDA: 0
+ AND #$FF
+ PHA
+ PEA 0
+ PEA 0
+ _TCPIPWriteTCP
+ PLS
+ RTS
+
+*-------------------------------------------------
+* Error HTMLs
+*-------------------------------------------------
+
+COPYERRORTOHANDLE
+
+ PHA ;Error code
+
+ PHS 2
+ PHL #0
+ ~MMStartUp
+ PEA $0018
+ PEA 0
+ PEA 0
+ _NewHandle
+ PLXA FILEHANDLE
+
+ LDX #0
+:LOOP LDA ERRORTABLE,X
+ BEQ :DO500
+ CMP 1,S
+ BEQ :GOTERROR
+ TXA
+ CLC
+ ADC #8
+ TAX
+ BRA :LOOP
+:DO500 LDA #500 ;Server internal error
+ STA 1,S
+ LDX #0
+ BRA :LOOP
+:GOTERROR STX :INDEX
+
+ PEA ^*
+ PEA ERRORHTML1
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ LDX :INDEX
+ LDA ERRORTABLE+2,X
+ PEA ^*
+ PHA
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PEA ^*
+ PEA ERRORHTML2
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PHL #:ASCBUFF
+ PEA 3
+ PEA 0
+ _Int2Dec
+ PEA ^*
+ PEA :PSTRBUFF
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PEA ^*
+ PEA :SPACE
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ LDX :INDEX
+ LDA ERRORTABLE+4,X
+ PEA ^*
+ PHA
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PEA ^*
+ PEA ERRORHTML3
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ LDX :INDEX
+ LDA ERRORTABLE+6,X
+ PEA ^*
+ PHA
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PEA ^*
+ PEA ERRORHTML4
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ LDA LINELEN
+ PHA
+ XBA
+ STA LINELEN
+ PEA ^*
+ PEA THELINE-1
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+ PLW LINELEN
+
+ PEA ^*
+ PEA ERRORHTML5
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PEA ^*
+ PEA ERRORHTML6
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ PEA ^*
+ PEA ERRORHTML7
+ PZL FILEHANDLE
+ JSL ADDPSTRHANDLE
+
+ RTS
+
+:INDEX DA 0
+
+:PSTRBUFF DFB 3
+:ASCBUFF DS 3,'0'
+
+:SPACE STR ' '
+
+ERRORHTML1 STR '<html><head><title>'
+ERRORHTML2 STR '</title></head><body><h1>HTTP ERROR: '
+ERRORHTML3 STR '</h1><p>'
+ERRORHTML4 STR '</p><hr><pre><tt>'
+ERRORHTML5 STR '</tt></pre>'
+ERRORHTML6 STR '<hr><p><small><i>Generated on an Apple II<small>GS</small> by Casper 1.0.1'
+ERRORHTML7 STR '<br>Copyright &copy 2003 Richard Bennett</i></small></p></body></html>'
+
+ERRORTABLE
+ DA 400,TITLE400,HEADER400,EXPLAIN400
+ DA 404,TITLE404,HEADER404,EXPLAIN404
+ DA 500,TITLE500,HEADER500,EXPLAIN500
+ DA 501,TITLE501,HEADER501,EXPLAIN501
+ DA 503,TITLE503,HEADER503,EXPLAIN503
+ DA 0
+
+TITLE400
+HEADER400 STR 'Bad Request'
+EXPLAIN400 STR 'The request has an invalid syntax for this server.'
+
+TITLE404
+HEADER404 STR 'Not found'
+EXPLAIN404 STR 'The requested URI was not found on this server.'
+
+TITLE500
+HEADER500 STR 'Internal server error'
+EXPLAIN500 STR 'There has been an internal error with this server, while trying to fulfill your request.'
+
+TITLE501
+HEADER501 STR 'Not implemented'
+EXPLAIN501 STR 'This method is not recognised by this server.'
+
+TITLE503
+HEADER503 STR 'Service unavailable'
+EXPLAIN503 STR 'This server is currently busy. Please try again in a few minutes.'
+
+*-------------------------------------------------
+* Subroutines
+*-------------------------------------------------
+
+PRIP PHS
+ PHXA
+ PHL #:PSTR
+ PEA 0
+ _TCPIPConvertIPToASCII
+ PLS
+ ~WriteString #:PSTR
+ RTS
+
+:PSTR DS 1+15
+
+ SAV Casper.L
+
+ END

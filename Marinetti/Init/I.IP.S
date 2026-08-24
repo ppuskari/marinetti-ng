@@ -1,0 +1,1247 @@
+ LST OFF
+*=================================================
+*
+* I.IP.S - Main IP handling code for Marinetti
+*
+* Copyright (C) 1997-2005 Richard Bennett-Forrest
+*
+* This library is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public
+* License as published by the Free Software Foundation; either
+* version 2.1 of the License, or (at your option) any later version.
+*
+* This library is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+* Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public
+* License along with this library; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*
+*=================================================
+*
+* 2005.04.13 RJB - Initial release as open source
+* 2008.01.28 AJR - Improve error handling 1881079
+*
+*=================================================
+ REL
+ mx 0
+
+ USE 4/RJBUTIL.MACS
+ USE 4/MEM.MACS
+ USE ../EQUATES/BUILD.EQU
+ USE ../EQUATES/I.EQU
+ USE ../EQUATES/TCPIP.EQU
+
+* NOTE: PKTLISTHANDLE will never get any bigger than 64K, so use shortcuts
+
+* Called with data bank invalid!
+
+ EXT MYID,MYDP,PROTOCOLTOQUEUE
+
+ EXT OPENDATAGRAM,WRITEDATAGRAM,CLOSEDATAGRAM
+
+ EXT LINKGETPACKET
+
+ EXT IPOPENUSER,IPCLOSEUSER,GETTICK,CallUserTrigger
+
+ EXT GETNEXTINQUEUE,ADDTOHANDLE,ADDTOQUEUE,INSERTQUEUE
+ EXT QUEUESIZE,FINDINQUEUE,RIPFROMQUEUE
+
+ EXT UDPSYNTAX
+
+ EXT TCPSYNTAX,TCPTOSSUNCLAIMED,SEGMENTARRIVES
+
+ EXT ICMPIN
+
+* ENTs in this module
+*
+* IPPOLL():delta:boolean;
+* IPPKTCOUNT():count:integer;
+* IPSENDDATAGRAM(dgmptr:longword);
+* IPSENDINSIDEIP(dataptr:longword,len:integer);
+* IPNEXTPACKET():pkthandle:handle;
+
+*-------------------------------------------------
+* Many interface routines
+*-------------------------------------------------
+
+IPPOLL ENT ;IPPOLL():delta:boolean;
+ DBGMSG IPPOLL
+ PHB
+ PHK
+ PLB
+ PHD
+ LDA >MYDP
+ TCD
+
+:TRYAGAIN
+
+ PHS 2
+ JSL LINKGETPACKET
+ LDA 1,S
+ ORA 3,S
+ BNE :ADDIT
+ PLS 2
+ BRA :SKIPLINK
+:ADDIT PZL RAWPKTSHANDLE
+ JSL ADDTOQUEUE
+% BCS :ERR ;(no need to do anything different)
+:SKIPLINK
+
+ PHS 2
+ PZL RAWPKTSHANDLE
+ JSL GETNEXTINQUEUE
+
+ LDA 1,S
+ ORA 3,S
+ BEQL NOPACKET2
+
+ INCR ERRORTABLE+tcpDGMSTOTAL
+
+* Syntax check
+
+ LDA 1,S
+ STA TMPHANDLE
+ LDA 1+2,S
+ STA TMPHANDLE+2
+
+ LDA [TMPHANDLE]
+ STA TMPTR
+ LDY #2
+ LDA [TMPHANDLE],Y
+ STA TMPTR+2
+
+ LDY #8+2
+ LDA [TMPHANDLE],Y
+ BNE :SIZEOK
+ DEY
+ DEY
+ LDA [TMPHANDLE],Y
+ CMP #20
+ BCC :BADHDRLEN
+:SIZEOK
+
+* Check IP header checksum
+
+ LDA [TMPTR]
+ AND #$F ;get number of 32 bit words
+ ASL ;calculate number of 16 bit words
+ TAX
+ ASL ;calculate number of bytes
+ STA IPHEADERLEN
+ PEA 0 ;checksum
+ LDY #0
+ CLC
+]L1 LDA [TMPTR],Y
+ XBA
+ ADC 1,S
+ STA 1,S
+ INY
+ INY
+ DEX
+ BNE ]L1
+ PLA
+ ADC #0
+
+ EOR #-1
+ BEQ :CHKSUMOK
+
+ INCR ERRORTABLE+tcpDGMSBADCHK
+
+:PURGEPKT _DisposeHandle
+ BRL :TRYAGAIN
+
+:BADHDRLEN INCR ERRORTABLE+tcpDGMSBADHEADLEN
+ BRA :PURGEPKT
+
+:CHKSUMOK
+
+* Destination IP address
+
+ LDY #ip_dst
+ LDA [TMPTR],Y
+ CMP MYIPADDRESS
+ BNE :TRYLOOPBACK
+ INY
+ INY
+ LDA [TMPTR],Y
+ CMP MYIPADDRESS+2
+ BEQ :DESTOK
+
+:TRYLOOPBACK LDY #ip_dst
+ LDA [TMPTR],Y
+ CMP #$007F
+ BNE :IPWRONG
+ INY
+ INY
+ LDA [TMPTR],Y
+ CMP #$0100
+ BEQ :DESTOK
+
+:IPWRONG INCR ERRORTABLE+tcpDGMSBADIP
+ BRA :PURGEPKT
+
+:DESTOK
+
+* Check for fragmentation
+
+ LDY #ip_fragoff
+ LDA [TMPTR],Y
+ XBA
+ AND #%0011_1111_1111_1111 ;Test MF bit and offset value
+ BEQ :NOFRAG
+
+ INCR ERRORTABLE+tcpDGMSFRAGSIN
+
+ PLX ;packet handle
+ PLA
+
+ JSR HANDLEFRAGMENT
+ BCSL :TRYAGAIN ;fragment added, so try next one
+
+ PHXA ;This is the newly completed datagram!
+ STXA TMPHANDLE
+ LDA [TMPHANDLE]
+ STA TMPTR
+ LDY #2
+ LDA [TMPHANDLE],Y
+ STA TMPTR+2
+
+ LDA [TMPTR]
+ AND #$F ;get number of 32 bit words
+ ASL ;calculate number of 16 bit words
+ ASL ;calculate number of bytes
+ STA IPHEADERLEN
+
+ INCR ERRORTABLE+tcpDGMSBUILT
+
+:NOFRAG
+
+* OK, is now a valid datagram
+
+ INCR ERRORTABLE+tcpDGMSOK
+
+% LDY #ip_len
+% LDA [TMPTR],Y
+% XBA
+% SEC
+% SBC IPHEADERLEN
+% STA IPDATALEN
+
+ LDY #ip_proto
+ LDA [TMPTR],Y
+ AND #$FF
+ CMP #protocolICMP
+ BEQL :HANDLEICMP
+ CMP #protocolUDP
+ BEQ :HANDLEUDP
+ CMP #protocolTCP
+ BEQL :HANDLETCP
+ BRL UNSUP
+
+*-------------------------------------------------
+* :HANDLEUDP
+*-------------------------------------------------
+
+:HANDLEUDP JSL UDPSYNTAX ;Also sets up UDPPTR
+ BCC :UDPOK
+ INCR ERRORTABLE+tcpDGMSUDPBAD
+ BRL :PURGEPKT
+:UDPOK LDY #u_source
+ LDA [UDPPTR],Y ;Source port
+ XBA
+ TAX
+ LDY #u_dst
+ LDA [UDPPTR],Y ;Destination port
+ XBA
+ LDY #0 ;UDP
+ JSL IPOPENUSER
+ BCC :ADDUDP
+ INCR ERRORTABLE+tcpDGMSUDPNOPORT
+ BRL :PURGEPKT
+:ADDUDP LDY #uwUDPQueue+2
+ LDA [USERPTR],Y
+ PHA
+ DEY
+ DEY
+ LDA [USERPTR],Y
+ PHA
+ JSL ADDTOQUEUE
+ BCC :NOERR
+ INCR ERRORTABLE+tcpDGMSUDPBAD
+ BRL :PURGEPKT
+
+:NOERR INCR ERRORTABLE+tcpDGMSUDP
+ LDY #uwUDPCount
+ LDA [USERPTR],Y
+ CLC
+ ADC #1
+ STA [USERPTR],Y
+ INY
+ INY
+ LDA [USERPTR],Y
+ ADC #0
+ STA [USERPTR],Y
+
+ PHS
+ PHL #0 ;Trigger parm
+ PEA 0 ;Default actionCode
+ LDY #trgUDPIn ;Trigger number
+ JSL CallUserTrigger
+ PLS ;pop the response
+
+ JSL IPCLOSEUSER
+ BRA GOTPACKET
+
+*-------------------------------------------------
+* :HANDLETCP
+*-------------------------------------------------
+
+:HANDLETCP JSL TCPSYNTAX
+ BCC :TCPOK
+ INCR ERRORTABLE+tcpDGMSTCPBAD
+ BRL :PURGEPKT
+:TCPOK LDA IPHEADERLEN
+ CLC
+ ADC #tcp_sport ;offset to tcp ports
+ TAY
+ LDA [TMPTR],Y
+ XBA
+ TAX ;source port
+ INY
+ INY
+ LDA [TMPTR],Y ;dest port
+ XBA
+ LDY #1 ;TCP
+ JSL IPOPENUSER
+ BCS :TCPUNCLAIMED
+ LDY #uwTCP_State
+ LDA [USERPTR],Y
+ CMP #tcpsCLOSED
+ BEQ :TCPSEGOK
+ INCR ERRORTABLE+tcpDGMSTCP
+:TCPSEGOK JSL SEGMENTARRIVES
+ JSL IPCLOSEUSER
+ BRA GOTPACKET
+:TCPUNCLAIMED JSL TCPTOSSUNCLAIMED
+ INCR ERRORTABLE+tcpDGMSTCPNOPORT
+ BRL :PURGEPKT
+
+*-------------------------------------------------
+* :HANDLEICMP
+*-------------------------------------------------
+
+:HANDLEICMP PLS 2
+ JSL ICMPIN ;Purges
+ BCS NOPACKET
+ BRA GOTPACKET
+
+* I don't support it. Add it to miscellaneous queue.
+
+UNSUP PZL PKTLISTHANDLE
+ JSL ADDTOQUEUE
+ BCS NOPACKET ;ERR
+
+GOTPACKET LDA #1
+ BRA OUT
+
+NOPACKET2 PLS 2
+
+NOPACKET LDA #0
+
+OUT STA 7,S
+
+ JSR CLEANFRAGQUEUE
+
+ PLD
+ PLB
+ RTL
+
+
+IPPKTCOUNT ENT ;IPPKTCOUNT():count:integer;
+ DBGMSG IPPKTCOUNT
+ PHD
+ LDA >MYDP
+ TCD
+ LDA PKTLISTHANDLE+2
+ BEQ :NONE
+ LDY #8
+ LDA [PKTLISTHANDLE],Y
+ LSR
+ LSR
+ DEC
+ BRA :JOIN
+:NONE LDA #0
+:JOIN STA 6,S
+ PLD
+ RTL
+
+ DUM 4
+DGMPTR ADRL 0
+ DEND
+
+IPSENDDATAGRAM ENT ; IPSENDDATAGRAM(dgmptr:longword);
+ DBGMSG IPSENDDATAGRAM
+ TSC
+ PHD
+ TCD
+*
+ LDA >MYDP
+ TAX
+
+ SEP $20 ;set correct version and length
+ LDA #$45
+ STA [DGMPTR] ;ip_verlen
+ REP $20
+
+ JSR GETUNIQUEID
+ LDY #ip_id
+ STA [DGMPTR],Y
+
+ LDY #ip_src
+ LDA >MYIPADDRESS,X
+ STA [DGMPTR],Y
+ INY
+ INY
+ LDA >MYIPADDRESS+2,X
+ STA [DGMPTR],Y
+
+ LDA >MYDP
+ TCD ;DP is restored next line
+ JSL OPENDATAGRAM
+ PZL DGMPTR
+ LDY #ip_len
+ LDA [DGMPTR],Y
+ XBA
+ PHA
+ JSL WRITEDATAGRAM
+ JSL CLOSEDATAGRAM
+
+ do 0
+ PZL DGMPTR
+ LDY #ip_len
+ LDA [DGMPTR],Y
+ XBA
+ PHA
+ LDA >MYDP
+ TCD ;DP is restored next line
+ JSL SENDDATAGRAM
+ fin
+
+*
+ PLD
+ PHB
+ PLA
+ STA 3,S
+ PLA
+ STA 3,S
+ PLB
+ RTL
+
+ DUM 4
+DATAPTR ADRL 0
+DATALEN DA 0
+ DEND
+
+IPSENDINSIDEIP ENT
+ DBGMSG IPSENDINSIDEIP(ptr,len)
+ TSC
+ PHD
+ TCD
+ PHD
+ LDA >MYDP
+ TCD
+ JSL OPENDATAGRAM
+ PLD
+ LDA DATALEN
+ LDX #protocolICMP
+ JSR SENDIPHEADERX
+ PZL DATAPTR
+ PEI DATALEN
+ LDA >MYDP
+ TCD ;Is restored later -- no longer need temp DP
+ JSL WRITEDATAGRAM
+ JSL CLOSEDATAGRAM
+ PLD
+ PHB
+ PLA
+ STA 5,S
+ PLA
+ STA 5,S
+ PLA
+ PLB
+ RTL
+
+IPNEXTPACKET ENT ; IPNEXTPACKET():pkthandle:handle;
+ DBGMSG IPNEXTPACKET
+ PHD
+ LDA >MYDP
+ TCD
+
+ DEREF PKTLISTHANDLE;PKTLISTPTR
+
+ LDA [PKTLISTPTR]
+ STA 6,S
+ LDY #2
+ LDA [PKTLISTPTR],Y
+ STA 8,S
+ BEQ :OUT ;None
+
+ LDY #8
+ LDA [PKTLISTHANDLE],Y
+ PHA
+
+ LDY #6
+]L1 LDA [PKTLISTPTR],Y
+ TAX
+ DEY
+ DEY
+ LDA [PKTLISTPTR],Y
+ PHA
+ DEY
+ DEY
+ TXA
+ STA [PKTLISTPTR],Y
+ DEY
+ DEY
+ PLA
+ STA [PKTLISTPTR],Y
+ TYA
+ CLC
+ ADC #8
+ TAY
+ CMP 1,S
+ BCC ]L1
+
+ PLS
+
+ PEA 0
+ LDY #8
+ LDA [PKTLISTHANDLE],Y
+ SEC
+ SBC #4
+ PHA
+ PZL PKTLISTHANDLE
+ _SetHandleSize
+
+:OUT PLD
+ RTL
+
+*-------------------------------------------------
+* Master IP variables
+*-------------------------------------------------
+
+MASTER_IP_HEADERLEN DA 5
+
+MASTER_IP_OFFSET DA 0
+
+MASTER_IP_TTL DA 64
+
+MASTER_IP_PROTOCOL DA protocolICMP
+
+MASTER_IP_TOS DA 0
+
+*-------------------------------------------------
+* Variables
+*-------------------------------------------------
+
+ERRORTABLE ENT
+ DS tcpDGMSLEN
+
+*-------------------------------------------------
+* Local subroutines
+*-------------------------------------------------
+
+GETUNIQUEID PHX ;Flips to big endian as well
+ LDA >MYDP
+ TAX
+ LDA >IPUNIQUEID,X
+ INC
+ STA >IPUNIQUEID,X
+ DEC
+ XBA
+ PLX
+ RTS
+
+SENDIPHEADERX PHB ;Sends an IP header. Data length is in A.
+ PHK ;                    Protocol is in X.
+ PLB
+ CLC
+ ADC #20
+ XBA
+ STA :TOTALEN
+ TSC
+ PHD
+ TCD
+*
+ SEP $10
+ STX :PROTOCOL
+ REP $10
+ JSR GETUNIQUEID
+ STA :ID
+ SEP $20
+ LDA MASTER_IP_TOS
+ STA :TOS
+ LDA MASTER_IP_TTL
+ STA :TTL
+ REP $20
+
+ LDA >MYDP
+ TAX
+ LDA >MYIPADDRESS,X
+ STA :IPSRC
+ LDA >MYIPADDRESS+2,X
+ STA :IPSRC+2
+ LDA >DESTINATIONIP,X
+ STA :IPDST
+ LDA >DESTINATIONIP+2,X
+ STA :IPDST+2
+
+ PHLW #:IPHEADER;#20
+ LDA >MYDP
+ TCD ;Restored next
+ JSL WRITEDATAGRAM ;checksum is calculated in here
+*
+ PLD
+ PLB
+ RTS
+
+:IPHEADER HEX 45 ;ver_len
+:TOS HEX 00 ;TOS
+:TOTALEN DS 2
+:ID DS 2
+ HEX 0000 ;FRAG
+:TTL DFB 64 ;TTL (time to live)
+:PROTOCOL DFB 0
+ HEX 0000 ;checksum
+:IPSRC ADRL 0
+:IPDST ADRL 0
+
+*-------------------------------------------------
+* SENDIPHEADER(ipkeyblock,proto,len)
+*
+* ipkeyblock is same as beginning of user area:
+*
+* uwUserID      DA     0
+* uwDestIP      ADRL   0
+* uwDestPort    DA     0
+* uwIP_TOS      DA     0
+* uwIP_TTL      DA     0
+*
+*-------------------------------------------------
+
+ DUM 5
+siLEN DA 0
+siPROTO DA 0
+siKEYBLOCK ADRL 0
+ DEND
+
+SENDIPHEADER ENT ;Starts a packet, sends IP header
+ DBGMSG SENDIPHEADER(ipkeyblock,proto,len)
+ PHB
+ PHK
+ PLB
+
+ TSC
+ PHD
+ TCD
+ SEP $20
+ LDY #uwIP_TOS
+ LDA [siKEYBLOCK],Y
+ AND #%1111
+ ASL
+ STA :TOS
+ LDY #uwIP_TTL
+ LDA [siKEYBLOCK],Y
+ STA :TTL
+ LDA siPROTO
+ STA :PROTOCOL
+ REP $20
+ LDA siLEN
+ CLC
+ ADC #20 ;IP header length
+ XBA ;flip it (big endian)
+ STA :TOTALEN
+ LDY #uwDestIP
+ LDA [siKEYBLOCK],Y
+ STA :IPDST
+ INY
+ INY
+ LDA [siKEYBLOCK],Y
+ STA :IPDST+2
+ PLD
+
+ PHD
+ LDA >MYDP
+ TCD
+ LDA MYIPADDRESS
+ STA :IPSRC
+ LDA MYIPADDRESS+2
+ STA :IPSRC+2
+ JSR GETUNIQUEID
+ STA :ID
+
+* Check for loopback
+
+ LDA :IPDST
+ CMP #$007F
+ BNE :TRYME
+ LDA :IPDST+2
+ CMP #$0100
+ BNE :TRYME
+ BRA :LOOPBACK
+
+:TRYME LDA :IPDST
+ CMP MYIPADDRESS
+ BNE :NOPE
+ LDA :IPDST+2
+ CMP MYIPADDRESS+2
+ BNE :NOPE
+
+:LOOPBACK LDA #-1
+ STA LOOPBACK
+ ~NewHandle #20;>MYID;#$0018;#0
+ PLXA LOOPBACKHANDLE
+ PHL #:IPHEADER
+ PHXA
+ PHL #20
+ _PtrToHand
+ BRA :DONE
+
+:NOPE STZ LOOPBACK
+
+ JSL OPENDATAGRAM
+ PHLW #:IPHEADER;#20
+ JSL WRITEDATAGRAM
+
+:DONE PLD
+ PLA
+ STA 7,S
+ PLA
+ STA 7,S
+ PLS 2
+ PLB
+ RTL
+
+:IPHEADER DFB 4*16+5 ;ver_len
+:TOS DFB 0 ;TOS
+:TOTALEN DDB 0
+:ID DDB 0
+ DDB 0 ;FRAG
+:TTL DFB 64 ;TTL (time to live)
+:PROTOCOL DFB 0
+ DDB 0 ;checksum
+:IPSRC ADRL 0
+:IPDST ADRL 0
+
+*-------------------------------------------------
+* USER RECORD routines - DP is my DP, USERPTR is valid
+*
+* SENDIPDATA(ptr,len)
+* CLOSEIP
+* Carry set indicates error (from AddTo*)
+*-------------------------------------------------
+
+SENDIPDATA ENT
+ DBGMSG SENDIPDATA(ptr,len)
+ BIT LOOPBACK
+ BMI :LOOPIT
+ JML WRITEDATAGRAM
+:LOOPIT LDA 6+2,S
+ PHA
+ LDA 6+2,S
+ PHA
+ PEA 0
+ LDA 10,S
+ PHA
+ PZL LOOPBACKHANDLE
+ JSL ADDTOHANDLE
+% BCS :ERR ;(no need to do anything different)
+ PHB
+ PLA
+ STA 5,S
+ PLA
+ STA 5,S
+ PLA
+ PLB
+ RTL
+
+CLOSEIP ENT
+ DBGMSG CLOSEIP
+ BIT LOOPBACK
+ BMI :LOOPIT
+ JML CLOSEDATAGRAM
+:LOOPIT PZL LOOPBACKHANDLE
+ PZL RAWPKTSHANDLE
+ JSL ADDTOQUEUE
+% BCS :ERR ;(no need to do anything different)
+ STZ LOOPBACK
+ RTL
+
+*-------------------------------------------------
+* Datagram reassembly logic - fragment
+*-------------------------------------------------
+
+HANDLEFRAGMENT
+
+ LOCK TMPHANDLE ;Going to be messing with memory queues
+ ;Pointer is in TMPTR
+
+* Build dummy frag master entry
+
+ STZ :FRAGBLOCK+FRAG_TOTAL
+
+ LDY #ip_src
+ LDA [TMPTR],Y
+ STA :FRAGBLOCK+FRAG_SRCIP
+ INY
+ INY
+ LDA [TMPTR],Y
+ STA :FRAGBLOCK+FRAG_SRCIP+2
+ LDY #ip_proto
+ LDA [TMPTR],Y
+ AND #$FF
+ STA :FRAGBLOCK+FRAG_PROTOCOL
+ LDY #ip_id
+ LDA [TMPTR],Y
+ STA :FRAGBLOCK+FRAG_ID
+
+ LDY #ip_fragoff
+ LDA [TMPTR],Y
+ XBA
+ AND #%0010_0000_0000_0000
+ BNE :NOTEND
+
+ LDA [TMPTR]
+ AND #$F
+ ASL
+ ASL
+ PHA
+ LDY #ip_len
+ LDA [TMPTR],Y
+ XBA
+ SEC
+ SBC 1,S
+ STA 1,S ;Length of data only
+ LDY #ip_fragoff
+ LDA [TMPTR],Y
+ XBA
+ AND #%0001_1111_1111_1111
+ ASL
+ ASL
+ ASL
+ CLC
+ ADC 1,S
+ STA :FRAGBLOCK+FRAG_TOTAL
+ PLS
+:NOTEND
+
+* First see if a fragment has already been received
+
+ PHS
+ PZL FRAGQUEUE
+ JSL QUEUESIZE
+ PLA
+ BEQL :NEWFRAG
+
+ STA FRAGMAX ;How many fragments pending
+
+ STZ FRAGINDEX ;Scan list for my entry
+
+:NEXTFRAG1 PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL FINDINQUEUE
+ PLXA FRAGMASTERH
+
+ LDA [FRAGMASTERH]
+ STA FRAGMASTER
+ LDY #2
+ LDA [FRAGMASTERH],Y
+ STA FRAGMASTER+2
+
+ LDA [FRAGMASTER]
+ INC
+ BEQ :GOTMASTER
+
+:ITERATE INC FRAGINDEX
+ LDA FRAGINDEX
+ CMP FRAGMAX
+ BCC :NEXTFRAG1
+ BRL :NEWFRAG
+
+:GOTMASTER LDY #FRAG_ID
+ LDA [FRAGMASTER],Y
+ CMP :FRAGBLOCK,Y
+ BNE :ITERATE
+ LDY #FRAG_SRCIP
+ LDA [FRAGMASTER],Y
+ CMP :FRAGBLOCK,Y
+ BNE :ITERATE
+ INY
+ INY
+ LDA [FRAGMASTER],Y
+ CMP :FRAGBLOCK,Y
+ BNE :ITERATE
+ LDY #FRAG_PROTOCOL
+ LDA [FRAGMASTER],Y
+ CMP :FRAGBLOCK,Y
+ BNE :ITERATE
+
+* OK, this is my master entry
+
+ LDA FRAGINDEX
+ STA :MASTERFRAG
+
+ LDY #FRAG_TOTAL
+ LDA :FRAGBLOCK+FRAG_TOTAL
+ BEQ :SKIPNEWTOT
+ STA [FRAGMASTER],Y
+:SKIPNEWTOT LDA [FRAGMASTER],Y
+ STA :FRAGBLOCK+FRAG_TOTAL
+
+:NEXTZ INC FRAGINDEX ;Start looking for where this entry sits
+
+ PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL FINDINQUEUE
+ PLA
+ STA FRAGENTRYH
+ PLA
+ STA FRAGENTRYH+2
+ ORA FRAGENTRYH
+ BEQ :ADDHERE
+
+ LDA [FRAGENTRYH]
+ STA FRAGENTRY
+ LDY #2
+ LDA [FRAGENTRYH],Y
+ STA FRAGENTRY+2
+
+ LDA [FRAGENTRY] ;Another master?
+ INC
+ BEQ :ADDHERE
+
+ LDY #ip_fragoff
+ LDA [FRAGENTRY],Y
+ XBA
+ AND #%0001_1111_1111_1111
+ PHA
+ LDA [TMPTR],Y
+ XBA
+ AND #%0001_1111_1111_1111
+ CMP 1,S
+ BCC :ADDHEREPL1 ;It goes here!
+ BEQ :PURGE ;Already got it, purge it.
+ PLS
+ BRA :NEXTZ ;Keep going
+
+:PURGE PLS
+:ERR UNLOCK TMPHANDLE
+ PZL TMPHANDLE
+ _DisposeHandle
+ SEC
+ RTS
+
+:ADDHEREPL1 PLS
+:ADDHERE PEI FRAGINDEX
+ PZL TMPHANDLE
+ PZL FRAGQUEUE
+ JSL INSERTQUEUE
+ BCS :ERR
+ UNLOCK TMPHANDLE
+
+* OK, now count 'em up and see if we have 'em all
+
+ PEA 0 ;Start counting octets at zero
+
+ LDA :FRAGBLOCK+FRAG_TOTAL
+ BEQL :NOTFULL ;Haven't got the last fragment yet
+
+ LDA :MASTERFRAG ;index of the master
+ STA FRAGINDEX ;start with the first fragment
+
+:SCANLOOP INC FRAGINDEX ;Start looking for where this entry sits
+
+ PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL FINDINQUEUE
+ PLA
+ STA FRAGENTRYH
+ PLA
+ STA FRAGENTRYH+2
+ ORA FRAGENTRYH
+ BEQ :ADDHERE
+
+ LDA [FRAGENTRYH]
+ STA FRAGENTRY
+ LDY #2
+ LDA [FRAGENTRYH],Y
+ STA FRAGENTRY+2
+
+ LDA [FRAGENTRY] ;Another master?
+ INC
+ BEQL :NOTFULL
+
+ LDY #ip_fragoff ;See if its the next one in my count
+ LDA [FRAGENTRY],Y
+ XBA
+ AND #%0001_1111_1111_1111
+ ASL
+ ASL
+ ASL
+ CMP 1,S
+ BNEL :NOTFULL
+
+ LDA [FRAGENTRY] ;Yep, get the data length
+ AND #$F
+ ASL
+ ASL
+ PHA ;header length
+ LDY #ip_len
+ LDA [FRAGENTRY],Y
+ XBA
+ SEC
+ SBC 1,S
+ PLX ;A = length of data
+
+ CLC
+ ADC 1,S
+ STA 1,S ;total length
+ CMP :FRAGBLOCK+FRAG_TOTAL
+ BEQ :GOTEMALL
+
+ BRA :SCANLOOP
+
+:GOTEMALL PLS
+
+* OK, we have all the fragment, let's build a datagram!
+
+ LDA :MASTERFRAG ;index of the master
+ STA FRAGINDEX ;start with the master
+
+ PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL RIPFROMQUEUE
+ _DisposeHandle ;Dispose of it
+
+ PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL RIPFROMQUEUE
+ PLXA FRAGMASTERH ;No longer need the master, so use the space...
+;Use as this first fragment as a base
+
+:BUILDNEXT PHS 2 ;Get next fragment
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL RIPFROMQUEUE
+ PLXA FRAGENTRYH
+ LOCK FRAGENTRYH
+ LDA [FRAGENTRYH]
+ STA FRAGENTRY
+ LDY #2
+ LDA [FRAGENTRYH],Y
+ STA FRAGENTRY+2
+
+ LDA [FRAGENTRY] ;Yep, get the data length
+ AND #$F
+ ASL
+ ASL
+ PHA ;header length
+
+ CLC
+ ADC FRAGENTRY
+ TAX
+ LDA FRAGENTRY+2
+ ADC #0
+ PHA
+ PHX ;from
+
+ LDY #ip_len
+ LDA [FRAGENTRY],Y
+ XBA
+ SEC
+ SBC 5,S
+ PEA 0
+ PHA
+
+ PZL FRAGMASTERH
+
+ JSL ADDTOHANDLE
+% BCS :ERR ;(not sure where to go)
+
+ PLS
+
+ LDY #ip_fragoff ;Is this the last one?
+ LDA [FRAGENTRY],Y
+ XBA
+ AND #%0010_0000_0000_0000
+ PHA
+
+ UNLOCK FRAGENTRYH
+ PZL FRAGENTRYH
+ _DisposeHandle
+
+ PLA
+ BNE :BUILDNEXT ;Keep building
+
+* Doctor it up
+
+ LDA [FRAGMASTERH]
+ STA FRAGMASTER
+ LDY #2
+ LDA [FRAGMASTERH],Y
+ STA FRAGMASTER+2
+ LDA #0
+ LDY #ip_fragoff
+ STA [FRAGMASTER],Y
+
+ LDA [FRAGMASTER]
+ AND #$F
+ ASL
+ ASL ;header length
+ CLC
+ ADC :FRAGBLOCK+FRAG_TOTAL ;data length
+ XBA
+ LDY #ip_len
+ STA [FRAGMASTER],Y
+
+ LDA FRAGMASTERH+2
+ LDX FRAGMASTERH
+
+ CLC
+ RTS
+
+:NOTFULL PLS
+
+ SEC
+ RTS
+
+:NEWFRAG PHS 2
+ JSL GETTICK
+ PLA
+ CLC
+ ADC #FRAG_WAIT_TIME
+ STA :FRAGBLOCK+FRAG_EXPIRES
+ PLA
+ ADC #0
+ STA :FRAGBLOCK+FRAG_EXPIRES+2
+ ~NewHandle #FRAGBLOCKLEN;>MYID;#$0018;#0
+ PLXA FRAGENTRYH
+ PHL #:FRAGBLOCK
+ PHXA
+ PHL #FRAGBLOCKLEN
+ _PtrToHand
+ PZL FRAGENTRYH
+ PZL FRAGQUEUE
+ JSL ADDTOQUEUE
+% BCS :ERR ;(not sure where to go)
+ UNLOCK TMPHANDLE
+ PZL TMPHANDLE
+ PZL FRAGQUEUE
+ JSL ADDTOQUEUE
+% BCS :ERR ;(not sure where to go)
+ SEC
+ RTS
+
+:FRAGBLOCK DA $FFFF
+ DS FRAGBLOCKLEN-2,0
+
+:MASTERFRAG DA 0 ;Index of master entry
+
+CLEANFRAGQUEUE DBGMSG CLEANFRAGQUEUE ;Kills fragments longer than 1 min.
+
+ STZ FRAGINDEX
+
+:NEXTMASTER PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL FINDINQUEUE
+ PLA
+ STA FRAGMASTERH
+ PLA
+ STA FRAGMASTERH+2
+ ORA FRAGMASTERH
+ BEQ :DONE
+
+ LDA [FRAGMASTERH]
+ STA FRAGMASTER
+ LDY #2
+ LDA [FRAGMASTERH],Y
+ STA FRAGMASTER+2
+
+ LDA [FRAGMASTER]
+ INC
+ BNE :ITERATE
+
+:GOTMASTER PHS 2
+ JSL GETTICK
+ LDY #FRAG_EXPIRES+2
+ LDA [FRAGMASTER],Y
+ CMP 1+2,S
+ BCC :EXPIRED
+ BNE :ITERATEPL2 ;Still valid
+ DEY
+ DEY
+ LDA [FRAGMASTER],Y
+ CMP 1,S
+ BCC :EXPIRED
+ BNE :ITERATEPL2
+
+:EXPIRED PLS 2
+
+:KILLIT PHS 2 ;Destroy the entry
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL RIPFROMQUEUE
+ _DisposeHandle ;Dispose of it
+
+ INCR ERRORTABLE+tcpDGMSFRAGSLOST
+
+ PHS 2
+ PEI FRAGINDEX
+ PZL FRAGQUEUE
+ JSL FINDINQUEUE
+ PLA
+ STA FRAGMASTERH
+ PLA
+ STA FRAGMASTERH+2
+ ORA FRAGMASTERH
+ BEQ :DONE
+
+ LDA [FRAGMASTERH]
+ STA FRAGMASTER
+ LDY #2
+ LDA [FRAGMASTERH],Y
+ STA FRAGMASTER+2
+
+ LDA [FRAGMASTER]
+ INC
+ BEQ :GOTMASTER
+
+ BRA :KILLIT
+
+:ITERATEPL2 PLS 2
+
+:ITERATE INC FRAGINDEX
+ BRL :NEXTMASTER
+
+:DONE RTS
+
+ SAV I.IP.L
+
+ END
+
+* For reference
+
+FRAG_SRCIP ADRL 0 ;Where it was from
+FRAG_PROTOCOL DA 0 ;What protocol
+FRAG_ID DA 0 ;Identification
+FRAG_TOTAL DA 0 ;Total length of datagram, else 0000
+FRAG_EXPIRES ADRL 0 ;Tick when fragments should be purged

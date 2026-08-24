@@ -1,0 +1,28 @@
+=======================================
+    TCP/IP for the Apple IIgs
+Copyright (c) 1998-2003 Richard Bennett
+    Written by Richard Bennett
+=======================================
+
+This file contains the change history for the Casper application.
+
+Not all of these releases were made public, but their changes are listed
+for reference.
+
+People who assisted with new information on a bug are listed in brackets.
+
+---------------------------
+v1.0.1 - 5th September 2002
+---------------------------
+
+- Stack imbalance around _TCPIPAcceptTCP - Fixed (Andrew Roughan)
+- Directory location from where pages are loaded from is now displayed
+ when starting up.
+
+--------------------
+v1.0 - 20th May 2001
+--------------------
+
+- Initial release as open source
+
+=END=

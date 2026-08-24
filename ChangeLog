@@ -1,0 +1,269 @@
+=======================================
+    TCP/IP for the Apple IIgs
+Copyright (c) 1998-2002 Richard Bennett
+    Written by Richard Bennett
+=======================================
+
+This file contains the change history for Marinetti and related modules,
+plus documentation for the last official release. The list includes but is
+not limited to modules which are now LGPLed through the Marinetti Open Source
+Project (MOSP).
+
+Not all of these releases were made public, but their changes are listed
+for reference.
+
+People who assisted with new information on a bug are listed in brackets.
+
+------------------------
+v3.0b5 - 15th March 2012
+------------------------
+
+  Init - Made available to Olivier Goguel & Ewen Wannop
+
+- Bumped version number.
+- Fixed issues with TCPIPConvertIPToHEX [3509349] (Olivier Goguel)
+- Fixed stack imbalance in UDPSYNTAX [3496764] (Olivier Goguel)
+
+  Emulator 1.0 - contributed by Ewen Wannop
+
+- Initial release of Emulator Link Layer to general public
+
+--------------------------
+v3.0b4 - 5th February 2008
+--------------------------
+
+  Init - Made available to Ewen Wannop
+
+- Bumped version number.
+- Improve error handling [1881079]
+- Fix pointer addition bug in CopyFromHandle [1885692] (Andrew Roughan)
+
+  CDev
+
+- Bumped version number.
+
+  PPP 1.3d6
+
+- Support for MS-CHAPv1 authentication protocol [498031]
+- Handle incoming escape sequences as per RFC [1171684] (Geoff Weiss)
+
+  PPPX 1.3d6
+
+- Handle incoming escape sequences as per RFC [1171684] (Geoff Weiss)
+
+  Uthernet 1.x - contributed by Ewen Wannop and Glen
+
+- Initial release of Uthernet Link Layer to general public
+
+  TCP Snooper - contributed by Kelvin Sherlock
+
+- Initial release of TCP Snooper CDA to general public
+
+-----------------------
+v3.0b3 - 17th July 2006 - Kfest
+-----------------------
+
+  Init - made available for download from MOSP site
+
+- Added ability to capture TCP trace to disk
+- Fixed PROCESSTHIS? Sequence check [226053] (Ewen Wannop)
+- Fixed TCPRead memory overrun [426999] (Ewen Wannop)
+
+-----------------------
+v3.0b2 - 17th July 2005
+-----------------------
+
+  Init
+
+- Fixed stack imbalance in incoming SYN error handler [1084053] (Kelvin Sherlock)
+- Fixed stack imbalance in TCPIPStatusUDP [1183332] (Kelvin Sherlock)
+- Fixed incorrect usage of MYID in TCPIPLogin [1204455] (Kelvin Sherlock)
+
+  PPPX 1.3d4 - made available for download from MOSP site
+
+- Support for MS-CHAPv1 authentication protocol [498031]
+
+-----------------------
+v3.0b1 - 26th July 2003 - Kfest
+-----------------------
+
+  Init
+
+- Bumped version number.
+
+  CDev
+
+- Bumped version number.
+
+  MacIP 1.2
+
+- Bumped version number.
+
+  PPP 1.2b1 and PPPX 1.2b1
+
+- Fixed issues with output of debug information
+
+  Casper 1.0.1
+
+- Bumped version number.
+
+  Telnet 1.0.3
+
+- Fixed issue with displaying a message
+
+-----------------------
+v3.0d8 - 13th June 2003
+-----------------------
+
+First attempt at building the Marinetti installer using scripts developed for MOSP.
+
+  MacIP 1.2d3
+
+- Debug output in format acceptable to Text2Pcap.
+
+  PPP 1.2d9 and PPPX 1.2d9
+
+- Completed the CHAP implementation.
+- Debug output in format acceptable to Text2Pcap.
+
+  Telnet 1.0.2
+
+- Fixed problem with closing the connection.
+
+-------------------------
+v3.0d6 - 5th October 2002
+-------------------------
+
+  Init
+
+- I.QLIB New option in the PtrToPtr routine for checking the from and
+to addresses to make sure that any memory moves do not cross out of the
+handle. i.e. moves may only be from inside one handle, to the inside of
+another. This is handy, because it will _sysFailMgr if any part of Marinetti
+tries to move data which crosses a boundary, or is not inside a handle.
+- I.PATCH applied to move I.DNR from start of Bank Boundary
+- I.DISPATCH Fixed stack imbalance in CallUserTrigger
+
+  PPP 1.2d8 and PPPX 1.2d8
+
+- Support for CHAP Authentication Protocol
+
+  MacIP 1.1a2
+
+- Initial release of MacIP Link Layer to general public
+
+  Casper 1.0f1
+
+- Fixed stack imbalance for TCPIPAcceptTCP call.
+- Display server directory location on startup.
+
+  Telnet 1.0.1
+
+- Initial release of version compatible with Marinetti 3.x
+
+---------------------------
+v3.0d5 - 16th February 2002
+---------------------------
+
+  Init
+
+- ICMP packet sender was using 16 bit even checksum calculation for packets
+  which could be either odd or even lengths. This caused an infinite loop
+  when trying to send odd length ICMP packets. Fixed. (Andrew - well caught!)
+
+  PPP 1.1a3
+
+- Better way of handling ping of death.
+
+----------------------
+v3.0d4 - 6th June 2001
+----------------------
+
+  Init
+
+- Fixed stack imbalance in user trigger dispatcher. Also changed callback
+  syntax.
+
+----------------------
+v3.0d3 - 26th May 2001
+----------------------
+
+  Init
+
+- Fixed stack imbalance in ICMPSEND.
+
+  PPP 1.1a2
+
+- New build with some memory corruption checking turned on. We'll see if
+  anything pops up.
+
+----------------------
+v3.0d2 - 20th May 2001 - Bump the version, people will come...
+----------------------
+
+  Init
+
+- Backward compatable link layer modules.
+- Bumped version number.
+
+  CDev
+
+- Bumped version number.
+
+-----------------------
+v2.1a2 - 27th July 2000 - KFest again? That trick never works!
+-----------------------
+
+  Init
+
+- Stack offset problem in ICMP echo reply, so the reply packet was being sent
+  as crud. Applied quick fix for KFest, but still problems, as not completely
+  patchable without a full build.
+
+--------------------------
+v2.1a1 - 12th October 1999 - Just...
+--------------------------
+
+  Init
+
+- When in CLOSEWAIT, TCPReadTCP could overrun the requested buffer size. Fixed.
+
+-----------------------
+v2.1d1 - 11th July 1999 - It's still living!
+-----------------------
+
+  Init
+
+- Initial build with 2.1 version numbers. This is a 2.0.1 and 3.0 hybrid.
+- New tool calls _TCPIPGetUserEventTrigger, _TCPIPSetUserEventTrigger,
+  _TCPIPGetSysEventTrigger, _TCPIPSetSysEventTrigger.
+- New version 2 link layer module interface, with new call LinkConfigFileName.
+  Marinetti no longer supports link layer module interface version 1.
+
+  CDev
+
+- Moved buttons around on Setup connection window to make room for longer
+  link layer names.
+  (Sheppy)
+
+  PPP 1.1a1
+
+- Support for link layer module interface version 2.
+- Support for LinkConfigFileName. Filename = PPP.config
+
+  PPP.scripted 1.1a1
+
+- Support for link layer module interface version 2.
+- Support for LinkConfigFileName. Filename = PPP.script.cfg
+
+  SLIP 2.1a1
+
+- Support for link layer module interface version 2.
+- Support for LinkConfigFileName. Filename = SLIP.config
+
+  Direct Connect 1.1a1
+
+- Support for link layer module interface version 2.
+- Support for LinkConfigFileName. Filename = Direct.config
+
+=END=

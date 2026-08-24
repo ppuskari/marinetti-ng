@@ -1,0 +1,35 @@
+=======================================
+ TCP/IP for the Apple IIgs
+Copyright (c) 1998-2003 Richard Bennett
+ Written by Richard Bennett
+=======================================
+
+This file contains the change history for the Telnet application.
+
+Not all of these releases were made public, but their changes are listed
+for reference.
+
+People who assisted with new information on a bug are listed in brackets.
+
+----------------------
+v1.0.3 - 17th May 2003
+----------------------
+
+- "Opening Connection..." text was not being displayed for non-DNR
+ connections - fixed (Andrew Roughan)
+
+--------------------------
+v1.0.2 - 20th October 2002
+--------------------------
+
+- When the connection was closing, an endless loop was entered if the status
+ of the connection was already tcpsCLOSED. Exit logic now checks for this and
+ aborts cleanly if it is found - (Andrew Roughan)
+
+---------------------------
+v1.0.1 - 2nd September 2002
+---------------------------
+
+- Initial release as open source
+
+=END=

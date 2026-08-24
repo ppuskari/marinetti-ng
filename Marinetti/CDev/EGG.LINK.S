@@ -1,0 +1,12 @@
+ LKV $02
+ VER $02
+ TYP $BC
+ OVR ALL
+ ASM EGG.S
+ LINK EGG.L
+ SAV Toolstub
+ END
+ CMD DELRES C.RES $8017 $2
+ CMD MAKERES Toolstub C.RES -t $8017 -i 2 -o -l
+ CMD DELETE Toolstub
+ CMD COPYFORK C.RES *:System:CDevs:TCPIP -r -c -l 

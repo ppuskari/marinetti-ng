@@ -1,0 +1,27 @@
+=======================================
+ TCP/IP for the Apple IIgs
+Copyright (c) 1998-2002 Richard Bennett
+ Written by Richard Bennett
+=======================================
+
+This file contains the change history for the DirectConnect link layer module.
+
+People who assisted with new information on a bug are listed in brackets.
+
+---------------------------
+v1.1f2 - 22nd February 2002
+---------------------------
+
+- Fixed problem where if serial port buffer full, and holding a packet
+ of $7FFF bytes in length, and packet boundary is at the end of the
+ buffer, then we could trash memory. (Andrew Roughan)
+- Bumped copyright year in CDev.
+
+-----------------------
+v1.1a1 - 11th July 1999
+-----------------------
+
+- Support for link layer module interface version 2.
+- Support for LinkConfigFileName. Filename = Direct.config
+
+=END=

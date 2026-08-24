@@ -1,0 +1,83 @@
+=======================================
+    TCP/IP for the Apple IIgs
+Copyright (c) 1998-2002 Richard Bennett
+    Written by Richard Bennett
+=======================================
+
+This file contains the change history for the PPPX link layer module.
+
+People who assisted with new information on a bug are listed in brackets.
+
+A number in square brackets refers to the Sourceforge tracker item ID.
+
+------------------------
+v1.3d6 - 28th March 2005
+------------------------
+
+- Implement LCPTerminateRequest in PPPDisconnect
+- Improve debug output format for Ethereal
+- Handle incoming escape sequences as per RFC [1171684] (Geoff Weiss)
+
+---------------------------
+v1.3d4 - 16th February 2005
+---------------------------
+
+- MS-CHAP v1 authentication implemented by Andrew Roughan [498031]
+- Closed debug file on failed connection
+- Implemented HANGUP ON/OFF command
+- Return terrBADUSERPASS when CHAPRETRY count is reached.
+
+-----------------------
+v1.2b1 - 26th July 2003
+-----------------------
+
+- Fixed issues with output of debug information
+
+-----------------------
+v1.2d10 - 4th July 2003
+-----------------------
+
+- Modified Debug output into format compatible with Text2Pcap
+- Implement CHAP ON/OFF and CHAPRETRY
+
+----------------------------
+v1.2d8 - 29th September 2002
+----------------------------
+
+- Handle LCPTerminateRequest & LCPTerminateACK
+- Display LCP/IPCP code in SysFail for unsupported codes
+- Resend CHAP Response after timeout without ACK/NAK
+- Send CHAP tickle only if CHAP is available
+
+---------------------------
+v1.2d5 - 9th September 2002
+---------------------------
+
+- Set/Restore Data Bank register in PPPSTARTUP (CHAP Implementation error)
+- Lock PPPDGMHANDLE during manipulation in PPPCONNECT
+
+------------------------
+v1.2d2 - 18th March 2002
+------------------------
+
+- CHAP with MD5 Authentication implemented by Andrew Roughan [426996]
+
+---------------------------
+v1.1f1 - 22nd February 2002
+---------------------------
+
+- Added memcheck routine to watch for memory trashing.
+- Fixed problem where if serial port buffer full, and holding a packet
+ of $7FFF bytes in length, and packet boundary is at the end of the
+ buffer, the we could trash memory. (Andrew Roughan)
+- Deleted some obsolete code in the serial port driver.
+- Bumped copyright year in CDev.
+
+-----------------------
+v1.1a1 - 11th July 1999
+-----------------------
+
+- Support for link layer module interface version 2.
+- Support for LinkConfigFileName. Filename = PPP.script.cfg
+
+=END=

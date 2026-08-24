@@ -1,0 +1,1404 @@
+ LST OFF
+*=================================================
+*
+* SLIP.CODE.S - SLIP link layer module
+*
+* Copyright (C) 1998-2002 Richard Bennett
+*
+* This library is free software; you can redistribute it and/or
+* modify it under the terms of the GNU Lesser General Public
+* License as published by the Free Software Foundation; either
+* version 2.1 of the License, or (at your option) any later version.
+*
+* This library is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+* Lesser General Public License for more details.
+*
+* You should have received a copy of the GNU Lesser General Public
+* License along with this library; if not, write to the Free Software
+* Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*
+*=================================================
+*
+* 2003.04.21 RJBF - Initial release as open source
+*
+*=================================================
+ REL
+ mx 0
+
+ USE 4/RJBUTIL.MACS
+ USE 4/EVENT.MACS
+ USE 4/INT.MACS
+ USE 4/MEM.MACS
+ USE 4/MISC.MACS
+ USE ../../EQUATES/BUILD.EQU
+ USE ../../EQUATES/I.EQU
+ USE ../../EQUATES/TCPIP.EQU
+
+ EXT DelayVBLs
+ EXT Dvr8530ForceChar,Dvr8530CharsInBuffer,Dvr8530ReadChar
+ EXT Dvr8530Init,Dvr8530Shutdown,Dvr8530CheckChar
+ EXT Dvr8530FlushBuffer
+
+MYLLVERSION = 2
+
+* Set version to 2.1f1
+
+SLIPVERSH = $0210 ;MMMM_MMMM_mmmm_bbbb
+SLIPVERSL = $8001 ;sss0_0000_rrrr_rrrr ss-20=d,40=a,60=b,80=f,A0=r
+
+*
+
+ DUM LLSPACE ;My direct space on Marinetti's direct page
+USERNAMEPTR ADRL 0
+PASSWORDPTR ADRL 0
+SCRIPTPTR ADRL 0
+TOKPTR DA 0
+CHARCNTR DA 0
+MATCHPTR ADRL 0
+TMPPKTHANDLE ADRL 0
+TMPPKTPTR ADRL 0
+ DEND
+
+WINDOWLEN = 50 ;Length of match window (must by multiple of 2)
+
+PARMSTACK = 4
+PARMSTACKB = 1+PARMSTACK
+
+* SLIPINTERFACEV():interfaceV:integer;
+* SLIPSTARTUP():interfaceV:integer;
+* SLIPSHUTDOWN();
+* SLIPMODULEINFO(infoBlockPtr:longword);
+* SLIPGETPACKET():packetHandle:handle;
+* SLIPSENDPACKET(datagramPtr:longword,datagramLength:integer);
+* SLIPCONNECT(authMsgHandle,conMsgFlag,usernamePtr,passwordPtr,displayPtr,conHandle);
+* SLIPRECONSTATUS():reconStatus:boolean;
+* SLIPRECONNECT(displayPtr:longword);
+* SLIPDISCONNECT(conMsgFlag:integer,usernamePtr:longword,passwordPtr:longword,displayPtr:longword,disconHandle:handle);
+* SLIPGETVARIABLES():variablesPtr:longword
+* SLIPCONFIGURE(connectHandle,disconnectHandle);
+* SLIPCONFIGFNAME(configFileNamePtr:longword);
+
+ EXT SLIPCONFIGURE
+
+*-------------------------------------------------
+* Main entry point
+*-------------------------------------------------
+
+SLIP DBGMSG SLIP
+ JMP (:ROUTINES,X)
+
+:ROUTINES DA SLIPINTERFACEV
+ DA SLIPSTARTUP
+ DA SLIPSHUTDOWN
+ DA SLIPMODULEINFO
+ DA SLIPGETPACKET
+ DA SLIPSENDPACKET
+ DA SLIPCONNECT
+ DA SLIPRECONSTATUS
+ DA SLIPRECONNECT
+ DA SLIPDISCONNECT
+ DA SLIPGETVARIABLES
+ DA SLIPCONFIGURE
+ DA SLIPCONFIGFNAME
+
+*-------------------------------------------------
+* SLIPINTERFACEV():interfaceV:integer;
+*-------------------------------------------------
+
+SLIPINTERFACEV DBGMSG SLIPINTERFACEV():interfaceV:integer;
+ LDA #MYLLVERSION
+ STA PARMSTACK,S
+
+*-------------------------------------------------
+* SLIPSTARTUP():interfaceV:integer;
+* SLIPSHUTDOWN()
+*-------------------------------------------------
+
+SLIPSTARTUP DBGMSG SLIPSTARTUP
+SLIPSHUTDOWN DBGMSG SLIPSHUTDOWN
+ LDA #lvVer
+ STA >VARIABLES+lvVersion
+ LDA #terrOK
+ CLC
+ RTL
+
+*-------------------------------------------------
+* SLIPMODULEINFO(infoBlockPtr:longword);
+*-------------------------------------------------
+
+SLIPMODULEINFO DBGMSG SLIPMODULEINFO(infoBlockPtr:longword);
+ PHB
+ PHK
+ PLB
+ TSC
+ PHD
+ TCD
+ SEP $30
+ LDY #INFOL-1
+]L1 LDA INFO,Y
+ STA [1+PARMSTACK],Y
+ DEY
+ BPL ]L1
+ REP $30
+ PLD
+ PLA
+ STA 3,S
+ PLA
+ STA 3,S
+ PLB
+ LDA #terrOK
+ CLC
+ RTL
+
+INFO DA conSLIP
+IS1 STR 'SLIP'
+ DS 21-*+IS1
+SLIPVERSION ENT
+ DA SLIPVERSL
+ DA SLIPVERSH
+ DA %1000_0000_0000_0000
+INFOL = *-INFO
+
+*-------------------------------------------------
+* SLIPGETPACKET():packetHandle:handle;
+*-------------------------------------------------
+
+SLIPGETPACKET DBGMSG SLIPGETPACKET():packetHandle:handle;
+ PHB
+ PHK
+ PLB
+ STY :USERID
+*
+
+:TOPLOOP LDX #0
+
+:SCANLOOP PHX
+
+ PHS
+ PHX
+ JSL Dvr8530CheckChar
+ PLA
+
+ PLX
+ BCSL :CHECKTEXT
+
+ CMP #$C0
+ BEQ :BUILDONE
+ INX
+ BPL :SCANLOOP
+ ;off end of buffer. Ping of death? gather and see
+:BUILDONE CPX #0
+ BNE :BUILDOK
+ PHS
+ JSL Dvr8530ReadChar
+ PLA
+ BRA :TOPLOOP
+
+:BUILDOK PHS 2
+ PEA 0
+ PHX
+ PHW :USERID
+ PEA $0018
+ PEA 0
+ PEA 0
+ _NewHandle
+ PLXA TMPPKTHANDLE
+ DEREF TMPPKTHANDLE;TMPPKTPTR
+
+ STZ :CHOPSIZE
+
+ LDY #0
+:BUILDLOOP PHY
+ PHS
+ JSL Dvr8530ReadChar
+ PLA
+ BCS :OVERRUN
+ CMP #$C0
+ BEQ :ENDPKT
+ CMP #$DB
+ BNE :STUFFIT
+ PHS
+ JSL Dvr8530ReadChar
+ PLA
+ CMP #$DC
+ BEQ :STUFFC0
+ CMP #$DD
+ BEQ :STUFFDB
+ BRA :STUFFIT ;Invalid code! Take it anyway...
+:STUFFDB LDA #$DB
+ BRA :STUFFIT1
+:STUFFC0 LDA #$C0
+:STUFFIT1 INC :CHOPSIZE
+:STUFFIT PLY
+ SEP $20
+ STA [TMPPKTPTR],Y
+ REP $20
+ INY
+ BRA :BUILDLOOP
+
+:ENDPKT PLS
+
+ LDA :CHOPSIZE
+ BEQ :CHOPOK
+
+ LDY #8
+ LDA [TMPPKTHANDLE],Y
+ SEC
+ SBC :CHOPSIZE
+ TAX
+ INY
+ INY
+ LDA [TMPPKTHANDLE],Y
+ SBC #0
+ PHXA
+ PZL TMPPKTHANDLE
+ _SetHandleSize
+
+:CHOPOK
+
+ LDA TMPPKTHANDLE
+ STA PARMSTACKB,S
+ LDA TMPPKTHANDLE+2
+ STA PARMSTACKB+2,S
+ LDA #terrOK
+ PLB
+ CLC
+ RTL
+
+:OVERRUN PLS ;Packet WAS in buffer, but is now gone.
+ PZL TMPPKTHANDLE ;possible buffer full with last character
+ _DisposeHandle ;being the packet end.
+ BRL :TOPLOOP
+
+:NONE LDA #0
+ STA PARMSTACKB,S
+ STA PARMSTACKB+2,S
+% LDA #terrOK
+ PLB
+ CLC
+ RTL
+
+:CHECKTEXT LDX #0
+
+:MATCHLOOP LDY #0
+
+:MATCHNEXT PHX
+ PHY
+
+ PHS
+ PHX
+ JSL Dvr8530CheckChar
+ PLA
+
+ PLY
+ PLX
+
+ BCS :NONE
+
+ CMP #$7E
+ BEQL :TOPLOOP ;Now there is a packet!
+
+ SEP $20
+ AND #$7F
+ CMP :NOCARRIERASC,Y
+ REP $20
+ BEQ :MATCH
+ INX
+ BNE :MATCHLOOP
+ BRA :NONE
+
+:MATCH INX
+ BEQ :NONE
+ INY
+ CPY #9
+ BCC :MATCHNEXT
+
+* Got NO CARRIER
+
+ LDA #false
+ STA VARIABLES+lvConnected
+ JSL Dvr8530FlushBuffer
+ BRA :NONE
+
+:NOCARRIERASC ASC 'NO CARRIER'
+
+:CHOPSIZE DA 0
+
+:USERID DA 0
+
+*-------------------------------------------------
+* SLIPSENDPACKET(datagramPtr:longword,datagramLength:integer);
+*-------------------------------------------------
+
+SLIPSENDPACKET DBGMSG SLIPSENDPACKET(datagramPtr:longword,datagramLength:integer);
+ PEA $C0
+ JSL Dvr8530ForceChar
+ LDA PARMSTACK+2+2,S
+ PHA
+ LDA 2+PARMSTACK+2,S
+ PHA
+ LDA 2+2+PARMSTACK,S
+ PHA
+ JSL SLIPWRITEPACKET
+ PEA $C0
+ JSL Dvr8530ForceChar
+ PHB
+ PLA
+ STA 5,S
+ PLA
+ STA 5,S
+ PLA
+ PLB
+ LDA #terrOK
+ CLC
+ RTL
+
+*-------------------------------------------------
+* SLIPWRITEPACKET(dataPtr:longword,dataLength:integer);
+*-------------------------------------------------
+
+ DUM 4
+SENDPKTLEN DA 0
+SENDPKTPTR ADRL 0
+ DEND
+
+SLIPWRITEPACKET DBGMSG SLIPWRITEPACKET(dataPtr:longword,dataLength:integer);
+ TSC
+ PHD
+ TCD
+ LDA SENDPKTLEN
+ BEQ :DONE
+ LDY #0
+:LOOP PHY
+ LDA [SENDPKTPTR],Y
+ AND #$FF
+ CMP #$C0
+ BEQ :DBDC
+ CMP #$DB
+ BEQ :DBDD
+:STUFFIT PHA
+ JSL Dvr8530ForceChar
+ PLY
+ INY
+ CPY SENDPKTLEN
+ BCC :LOOP
+ BRA :DONE
+
+:DBDC PEA $DB
+ JSL Dvr8530ForceChar
+ LDA #$DC
+ BRA :STUFFIT
+
+:DBDD PEA $DB
+ JSL Dvr8530ForceChar
+ LDA #$DD
+ BRA :STUFFIT
+
+:DONE PLD
+ PHB
+ PLA
+ STA 5,S
+ PLA
+ STA 5,S
+ PLA
+ PLB
+ LDA #terrOK
+ CLC
+ RTL
+
+*-------------------------------------------------
+* SLIPCONNECT(authMsgHandle,conMsgFlag,usernamePtr,passwordPtr,displayPtr,conHandle);
+*-------------------------------------------------
+
+SLIPCONNECT DBGMSG SLIPCONNECT
+ PHB
+ PHK
+ PLB
+
+ STZ VARIABLES+lvErrors
+ STZ VARIABLES+lvIPaddress
+ STZ VARIABLES+lvIPaddress+2
+ LDA #1500
+ STA VARIABLES+lvMTU
+
+ LDA PARMSTACKB+8,S
+ STA PASSWORDPTR
+ LDA PARMSTACKB+8+2,S
+ STA PASSWORDPTR+2
+ LDA PARMSTACKB+12,S
+ STA USERNAMEPTR
+ LDA PARMSTACKB+12+2,S
+ STA USERNAMEPTR+2
+
+ LDA PARMSTACKB+16,S
+ BNE :SHOWOK
+ STZ DISPLAYPTR+1
+ STZ DISPLAYPTR+1+1
+ BRA :JOIN
+:SHOWOK LDA PARMSTACKB+4,S
+ STA DISPLAYPTR+1
+ LDA PARMSTACKB+4+1,S
+ STA DISPLAYPTR+1+1
+ LDA #LINKSTR
+ JSL SHOWPSTRING
+:JOIN
+ JSR STARTLINK
+ BCS :ERR
+ LDA #RUNSCRIPTSTR
+ JSL SHOWPSTRING
+ LDA PARMSTACKB,S
+ TAX
+ LDA PARMSTACKB+2,S
+ JSR RUNSCRIPT
+ BCS :BADSCRIPT
+ LDA #true
+ STA VARIABLES+lvConnected
+ LDA #terrOK
+ BRA :ERR
+
+:BADSCRIPT PHA
+ JSL Dvr8530Shutdown
+ PLA
+
+:ERR TAX
+ PLA
+ STA 21,S
+ PLA
+ STA 21,S
+ PLS 9
+ TXA
+ PLB
+ CMP #1
+ RTL
+
+RUNSCRIPTSTR STR 'Running script interpreter'
+LINKSTR STR 'Starting serial port driver'
+
+*-------------------------------------------------
+* SLIPRECONSTATUS():reconStatus:boolean;
+*-------------------------------------------------
+
+SLIPRECONSTATUS DBGMSG PPPRECONSTATUS
+ LDA >VARIABLES+lvConnected ;If connected, no, if not, yes
+ EOR #true
+ STA PARMSTACK,S
+ LDA #terrOK
+ CLC
+ RTL
+
+*-------------------------------------------------
+* SLIPRECONNECT(displayPtr:longword);
+*-------------------------------------------------
+
+SLIPRECONNECT DBGMSG SLIPRECONNECT(displayPtr:longword);
+ LDA PARMSTACK,S
+ STA >DISPLAYPTR+1
+ LDA PARMSTACK+1,S
+ STA >DISPLAYPTR+1+1
+ PHB
+ PLA
+ STA 3,S
+ PLA
+ STA 3,S
+ PLB
+ LDA #LINKSTR
+ JSL SHOWPSTRING
+ JSR STARTLINK
+ RTL
+
+*-------------------------------------------------
+* SLIPDISCONNECT(conMsgFlag:integer,usernamePtr:longword,passwordPtr:longword,displayPtr:longword,disconHandle:handle);
+*-------------------------------------------------
+
+SLIPDISCONNECT DBGMSG SLIPDISCONNECT
+ PHB
+ PHK
+ PLB
+
+ LDA PARMSTACKB+8,S
+ STA PASSWORDPTR
+ LDA PARMSTACKB+8+2,S
+ STA PASSWORDPTR+2
+ LDA PARMSTACKB+12,S
+ STA USERNAMEPTR
+ LDA PARMSTACKB+12+2,S
+ STA USERNAMEPTR+2
+
+ LDA PARMSTACKB+16,S
+ BNE :SHOWOK
+ STZ DISPLAYPTR+1
+ STZ DISPLAYPTR+1+1
+ BRA :JOIN
+:SHOWOK LDA PARMSTACKB+4,S
+ STA DISPLAYPTR+1
+ LDA PARMSTACKB+4+1,S
+ STA DISPLAYPTR+1+1
+ LDA #RUNSCRIPTSTR
+ JSL SHOWPSTRING
+:JOIN
+ LDA PARMSTACKB,S
+ TAX
+ LDA PARMSTACKB+2,S
+ JSR RUNSCRIPT
+ BCS :ERR
+ LDA #:LINKSTR
+ JSL SHOWPSTRING
+ JSL Dvr8530Shutdown
+ LDA #false
+ STA VARIABLES+lvConnected
+ LDA #terrOK
+:ERR TAX
+ PLA
+ STA 17,S
+ PLA
+ STA 17,S
+ PLS 7
+ TXA
+ PLB
+ CMP #1
+ RTL
+
+:LINKSTR STR 'Shutdown serial port'
+
+*-------------------------------------------------
+* SLIPGETVARIABLES():variablesPtr:longword
+*-------------------------------------------------
+
+SLIPGETVARIABLES DBGMSG SLIPGETVARIABLES
+ LDA #VARIABLES
+ STA 4,S
+ LDA #^VARIABLES
+ STA 4+2,S
+ LDA #terrOK
+ CLC
+ RTL
+
+*-------------------------------------------------
+* SLIPCONFIGFNAME(configFileNamePtr:longword);
+*-------------------------------------------------
+
+SLIPCONFIGFNAME DBGMSG SLIPCONFIGFNAME(configFileNamePtr:longword);
+ TSC
+ PHD
+ TCD
+ SEP $30
+ LDA >:CONFIGFNAME
+ TAX
+]L1 LDA >:CONFIGFNAME,X
+ TXY
+ STA [4],Y
+ DEX
+ BPL ]L1
+ REP $30
+ PLD
+ PHB
+ PLA
+ STA 3,S
+ PLA
+ STA 3,S
+ PLB
+ LDA #terrOK
+ CLC
+ RTL
+
+:CONFIGFNAME STR 'SLIP.config'
+
+*-------------------------------------------------
+* Support subroutines which don't need DBK and DP
+*-------------------------------------------------
+
+STARTLINK DBGMSG STARTLINK
+ PHS
+ PEA $8002 ;modem port
+ PEA 15 ;19200
+ PEA 0 ;HH?
+ JSL Dvr8530Init
+ PLA
+ BNE :ERR
+ LDA #terrOK
+ CLC
+ RTS
+:ERR LDA #terrLINKERROR&terrmask
+ SEC
+ RTS
+
+*-------------------------------------------------
+* Support subroutines which MUST have DBK and DP set
+*-------------------------------------------------
+
+SCRIPTLEN DA 0
+
+RUNSCRIPT STX SCRIPTPTR ;RUNSCRIPT(); Returns error in A. 0=OK, 1=ERR
+ STA SCRIPTPTR+2
+ LDY #8
+ LDA [SCRIPTPTR],Y
+ STA SCRIPTLEN
+ INY
+ INY
+ LDA [SCRIPTPTR],Y
+ BEQ :LENOK
+ STZ SCRIPTLEN
+:LENOK LDA [SCRIPTPTR]
+ TAX
+ LDY #2
+ LDA [SCRIPTPTR],Y
+ STX SCRIPTPTR
+ STA SCRIPTPTR+2
+:DOIT ~EMStatus
+ PLW EMACTIVE
+ LDY #0
+:TOP JSR CHECKABORT
+ BCS :ABORT
+ JSR :CHECKCOMMENT
+ BCS :DONE ;Don't need END anymore
+ JSR SHOWSCRIPTLINE
+ JSR :GETWORD
+ BCS :TOP ;Run out, next line
+ JSR :TOKENIZE
+ BCS :ERROR
+ CMP #1
+ BEQL :SEND
+ CMP #2
+ BEQL :WAIT
+ CMP #3
+ BEQ :DELAY
+ CMP #4
+ BEQL :GETIP
+ CMP #100
+ BEQL :SETIP
+ CMP #101
+ BEQ :BEEP
+ CMP #104
+ BEQL :DOMTU
+ CMP #5
+ BEQ :DONE
+ CMP #7
+ BEQ :BAUD
+ HEX 24
+:PLYERROR PLY
+ BRA :OUT
+:ERROR LDA #terrSCRIPTFAILED&terrmask
+ BRA :OUT
+:ABORT LDA #terrUSERABORTED&terrmask
+ BRA :OUT
+:DONE LDA #0
+:OUT CMP #1
+ RTS
+
+:BEEP PHY
+ _SysBeep
+ PLY
+ BRA :TOP
+
+:DELAY JSR :GETWORD
+ BCS :SEC1
+]L1 JSR :WORD2HEX
+ PHY
+ TAY
+ JSR DelayAbortVBLs
+ PLY
+ BCS :ABORT
+ JSR :GETWORD
+ BCC ]L1
+ BRL :TOP
+:SEC1 PHY
+ LDY #60
+ JSR DelayAbortVBLs
+ PLY
+ BCS :ABORT
+ BRL :TOP
+
+:BAUD JSR :GETWORD
+ BCSL :TOP
+ JSR :TOKENIZE
+ BCS :BAUD
+ CMP #8 ;8=1200,10=2400,12=4800,13=7200,14=9600,15=19200
+ BEQ :JOINBAUD ;16=38400,17=57600
+ CMP #10
+ BEQ :JOINBAUD
+ CMP #12
+ BCC :BAUD
+ CMP #17+1
+ BCS :BAUD
+:JOINBAUD PHY
+ PHS
+ PEA $8002 ;modem port
+ PHA
+ PEA 0 ;HH?
+ JSL Dvr8530Shutdown
+ JSL Dvr8530Init
+ PLS
+ PLY
+ BRL :TOP
+
+:SEND JSR :GETWORD
+ BCSL :TOP
+ JSR :TOKENIZE
+ CMP #6
+ BEQ :SENDCR
+ CMP #102
+ BEQ :UNAME
+ CMP #103
+ BEQ :PASS
+ LDX #0
+]L1 LDA :WORD,X
+ PHX
+ JSR :SENDCHAR
+ PLX
+ INX
+ CPX :WORDLEN
+ BCC ]L1
+ BRA :SEND
+:SENDCR LDA #$0D
+ JSR :SENDCHAR
+ BRA :SEND
+:SENDCHAR PHY
+ PHA
+ JSL Dvr8530ForceChar
+ LDY #1
+ JSL DelayVBLs
+ PLY
+ RTS
+:UNAME PHY
+ LDA [USERNAMEPTR]
+ AND #$FF
+ BEQ :NOUNAME
+ TAX
+ LDY #1
+]L1 LDA [USERNAMEPTR],Y
+ PHX
+ JSR :SENDCHAR
+ PLX
+ INY
+ DEX
+ BNE ]L1
+:NOUNAME PLY
+ BRA :SEND
+:PASS PHY
+ LDA [PASSWORDPTR]
+ AND #$FF
+ BEQ :NOUNAME
+ TAX
+ LDY #1
+]L1 LDA [PASSWORDPTR],Y
+ PHX
+ JSR :SENDCHAR
+ PLX
+ INY
+ DEX
+ BNE ]L1
+:NOPASS PLY
+ BRA :SEND
+
+:GETIP DBGMSG :GETIP
+ JSR :GETWORD
+ BCSL :ERROR
+ JSR :WORD2HEX
+ TAX
+ LDA #GETIP
+ STZ IPINDEX
+ STZ BUILDING?
+ PHY
+ JSR TIMEDCMD
+ BCSL :PLYERROR
+ PHS 3
+ PHL #IPASCBUFF
+ JSL ASC2HEXIP
+ PLL VARIABLES+lvIPaddress
+ PLS
+ PLY
+ BRL :TOP
+
+:SETIP DBGMSG :SETIP
+ JSR :GETWORD
+ BCSL :ERROR
+ STZ :WORD,X
+ PHY
+ PHS 1+2
+ PHL #:WORD
+ JSL ASC2HEXIP
+ PLL VARIABLES+lvIPaddress
+ PLS
+ PLY
+ BRL :TOP
+
+:DOMTU DBGMSG :DOMTU
+ JSR :GETWORD
+ BCS :MTU1500
+ JSR :WORD2HEX
+ CMP #0
+ BNE :SETIT
+:MTU1500 LDA #1500
+:SETIT STA VARIABLES+lvMTU
+ BRL :TOP
+
+:WAIT DBGMSG :WAIT
+ JSR :GETWORD
+ BCSL :ERROR
+ JSR :WORD2HEX
+ STA :COUNT
+ JSR :GETWORD
+ BCSL :ERROR
+ LDA :WORDLEN
+ DEC
+ STA MATCHLENM1
+ LXA #:WORD
+ STXA MATCHPTR
+ LDX #WINDOWLEN-2
+]L1 STZ WINDOW,X
+ DEX
+ DEX
+ BPL ]L1
+ PHY
+ LDX :COUNT
+ LDA #MATCH?
+ JSR TIMEDCMD
+ PLY
+ BCSL :OUT
+ BRL :TOP
+
+:COUNT DA 0
+
+:WORD2HEX DBGMSG :WORD2HEX
+ PHY
+ ~Dec2Int #:WORD;:WORDLEN;#0
+ PLA
+ PLY
+ RTS
+
+:COMLOOP INY
+ CPY SCRIPTLEN
+ BCS :COMOUT
+:CHECKCOMMENT DBGMSG :CHECKCOMMENT
+ SEP $20
+ LDA [SCRIPTPTR],Y
+ AND #$7F
+ CMP #$0D
+ BEQ :COMLOOP
+ CMP #$20
+ BEQ :COMLOOP
+ CMP #';'
+ BEQ :SKIPCR
+ CMP #'*'
+ BEQ :SKIPCR
+ CMP #'-'
+ BEQ :SKIPCR
+ CMP #'/'
+ BEQ :SKIPCR
+ CLC
+:COMOUT REP $20
+ RTS
+ mx %10
+:SKIPCR INY
+ CPY SCRIPTLEN
+ BCS :COMOUT
+ LDA [SCRIPTPTR],Y
+ AND #$7F
+ CMP #$0D
+ BNE :SKIPCR
+ BRA :COMLOOP
+ mx 0
+
+:GW1 INY
+ CPY SCRIPTLEN
+ BCS :NOWORD
+:GETWORD DBGMSG :GETWORD
+ SEP $20
+ LDA [SCRIPTPTR],Y
+ AND #$7F
+ CMP #$0D
+ BEQ :NOWORD
+ CMP #$20
+ BEQ :GW1
+ CMP #'"'
+ BEQ :DOQUOTE
+ CMP #"'"&$7F
+ BNE :NOQ
+:DOQUOTE STA :QUOTE
+ LDX #0
+ BRA :GWLOOP
+:NOQ STA :WORD
+ LDA #$20
+ STA :QUOTE
+ LDX #1
+:GWLOOP INY
+ CPY SCRIPTLEN
+ BCS :ENDW
+:NEXTGW LDA [SCRIPTPTR],Y
+ AND #$7F
+ CMP #$0D
+ BEQ :ENDW
+ CMP :QUOTE
+ BEQ :ENDW1
+ STA :WORD,X
+ INX
+ BRA :GWLOOP
+:ENDW1 INY
+:ENDW STX :WORDLEN
+ CPX #0 ;Could be zero if quotes were used...
+ BEQ :NOWORD1
+ REP $20
+ CLC
+ RTS
+:NOWORD1 DEY
+:NOWORD REP $20
+ INY
+ SEC
+ RTS
+
+:WORDLEN DA 0
+:WORD DS 100
+
+:QUOTE DFB 0
+
+:TOKENIZE DBGMSG :TOKENIZE
+ PHY
+ LDA #:CMDTBL
+ STA TOKPTR
+:TOKLOOP SEP $30
+ LDA (TOKPTR)
+ BEQ :TOKDONE
+ CMP :WORDLEN
+ BNE :NEXT
+ TAY
+]L1 LDA :WORD-1,Y
+ AND #$7F
+ CMP #'a'
+ BCC :UOK
+ CMP #'z'+1
+ BCS :UOK
+ AND #$5F
+:UOK CMP (TOKPTR),Y
+ BNE :NEXT1
+ DEY
+ BNE ]L1
+ LDA (TOKPTR)
+ TAY
+ INY
+ REP $30
+ LDA (TOKPTR),Y
+ PLY
+ CLC
+ RTS
+ mx %10
+:NEXT1 LDA (TOKPTR)
+:NEXT REP $30
+ AND #$FF
+ CLC
+ ADC #3
+ ADC TOKPTR
+ STA TOKPTR
+ BRA :TOKLOOP
+ mx %10
+:TOKDONE REP $30
+ LDA #0
+ PLY
+ SEC
+ RTS
+
+:CMDTBL STR 'SEND'
+ DA 1
+ STR 'WAIT'
+ DA 2
+ STR 'DELAY'
+ DA 3
+ STR 'GETIP'
+ DA 4
+ STR 'IP'
+ DA 4
+ STR 'END'
+ DA 5
+ STR 'CR'
+ DA 6
+ STR 'CR$'
+ DA 6
+ STR 'BAUD'
+ DA 7
+ STR 'SPEED'
+ DA 7
+ STR '1200'
+ DA 8
+ STR '2400'
+ DA 10
+ STR '4800'
+ DA 12
+ STR '7200'
+ DA 13
+ STR '9600'
+ DA 14
+ STR '19200'
+ DA 15
+ STR '38400'
+ DA 16
+ STR '57600'
+ DA 17
+ STR 'SETIP'
+ DA 100
+ STR 'BEEP'
+ DA 101
+ STR 'USERNAME$'
+ DA 102
+ STR 'PASSWORD$'
+ DA 103
+ STR 'MTU'
+ DA 104
+ DFB 0
+
+MATCHLENM1 DA 0
+
+TIMEDCMD STA :MOD+1
+:TOP SEC
+:LOOP PHP
+ SEP $20
+ LDA >$E0C019
+ REP $20
+ BPL :NOCHANGE
+ PLP
+ CLC
+ PHP
+:NOCHANGE PHX
+:MOD JSR MATCH?
+ BCC :GOTIT
+ PLX
+ PLP
+ BCS :LOOP
+ PHP
+ SEP $20
+ LDA >$E0C019
+ REP $20
+ BMI :NOCHANGE
+ DEX
+ BEQ :TIMEOUT
+ BPL :BACK
+ LDX #$FFFF
+:BACK PLP
+ JSR CHECKABORT
+ BCC :TOP
+ LDA #terrUSERABORTED&terrmask
+ SEC
+ RTS
+:GOTIT PLX
+ PLP
+ CLC
+ RTS
+:TIMEOUT PLP
+ LDA #terrSCRIPTFAILED&terrmask
+ SEC
+ RTS
+
+MATCH? PHA
+ JSL Dvr8530CharsInBuffer
+ PLA
+ BEQ :SECRTS
+ PHA
+ JSL Dvr8530ReadChar
+ PLY
+ SEP $30
+ LDX #0
+]L1 LDA WINDOW+1,X
+ STA WINDOW,X
+ INX
+ CPX MATCHLENM1
+ BCC ]L1
+ TYA
+ AND #$7F
+ STA WINDOW,X
+ TXY
+]L1 LDA WINDOW,Y
+ CMP [MATCHPTR],Y
+ BNE :NOMATCH
+ DEY
+ BPL ]L1
+ REP $30
+ CLC
+ RTS
+:NOMATCH REP $30
+:SECRTS SEC
+ RTS
+
+WINDOW DS WINDOWLEN
+
+CHECKABORT DBGMSG CHECKABORT
+ PHX
+ PHY
+ LDA EMACTIVE
+ BEQ :HARDWARE
+ ~GetNextEvent #%0000_0000_0010_1000;#:EVENTRECORD
+ PLA
+ BEQ :NO
+ LDA :EVENTRECORD+ERECWHAT
+ CMP #EVENTKEYDOWN
+ BEQ :CHECKEVT
+ CMP #EVENTAUTOKEY
+ BNE :NO
+:CHECKEVT LDA :EVENTRECORD+ERECMESSAGE
+ AND #$7F
+ CMP #$1B
+ BEQ :ABORT
+ CMP #'.'
+ BNE :NO
+ LDA :EVENTRECORD+ERECMODIFIERS
+ AND #%0000_0001_0000_0000
+ BEQ :NO
+ BRA :ABORT
+:HARDWARE SEP $20
+ LDA >$E0C000
+ BPL :NO
+ CMP #$9B
+ BEQ :ABORT
+ CMP #"."
+ BNE :NO
+ LDA >$E0C025
+ BPL :NO
+:ABORT REP $20
+ PLY
+ PLX
+ SEC
+ RTS
+:NO REP $20
+ PLY
+ PLX
+ CLC
+ RTS
+
+:EVENTRECORD DS 16
+
+EMACTIVE DA 0
+
+GETIP PHA
+ JSL Dvr8530CharsInBuffer
+ PLA
+ BEQ :NOTME
+ PHA
+ JSL Dvr8530ReadChar
+ PLA
+ AND #$7F
+ LDX BUILDING?
+ BNE :BUILD
+ CMP #'0'
+ BCC :NOTME
+ CMP #'9'+1
+ BCS :NOTME
+ INC BUILDING?
+:BUILD LDX IPINDEX
+ CMP #'.'
+ BEQ :ADDIT
+ CMP #'0'
+ BCC :GOTIT
+ CMP #'9'+1
+ BCS :GOTIT
+:ADDIT LDX IPINDEX
+ STA IPASCBUFF,X
+ INC IPINDEX
+ INX
+ CPX #15
+ BEQ :GOTIT
+:NOTME SEC
+ RTS
+
+:GOTIT STZ IPASCBUFF,X
+ CLC
+ RTS
+
+IPINDEX DA 0
+
+BUILDING? DA 0
+
+IPASCBUFF DS 15 ;255.255.255.255
+ DS 2 ;dummy stuff
+
+ DUM 5 ;Used for ASC2HEXIP and HEX2ASCIP
+IPASCPTR ADRL 0
+IPHEX ADRL 0
+IPPORT DA 0 ;For HEX2ASCIP, this is the FLAGS word
+ DEND
+
+ASC2HEXIP ENT ;ASC2HEXIP(cstringptr:longword):ip:long,port:integer
+ DBGMSG ASC2HEXIP
+ PHB
+ PHK
+ PLB
+ TSC
+ PHD
+ TCD
+*
+ STZ IPPORT
+ STZ IPHEX
+ STZ IPHEX+2
+ SEP $30
+ LDX #0
+]L2 LDY #0
+]L1 LDA [IPASCPTR],Y
+ BEQ :GOTDOT
+ CMP #'.'
+ BEQ :GOTDOT
+ CMP #'0'
+ BCC :DONEIP?
+ CMP #'9'+1
+ BCS :DONEIP?
+ INY
+ BRA ]L1
+:DONEIP? CPX #3
+ BNE :DONEIP
+:GOTDOT PHX
+ PHY
+ REP $30
+ PHS
+ PZL IPASCPTR
+ PHY
+ PEA 0
+ _Dec2Int
+ PLA
+ SEP $30
+ PLY
+ PLX
+ STA IPHEX,X
+ CPX #3
+ BEQ :DONEIP
+ JSR :BUMP
+ INX
+ BRA ]L2
+:DONEIP DEY
+ JSR :BUMP
+ LDY #-1 ;Look for comma
+]L1 INY
+ LDA [IPASCPTR],Y
+ BEQ :DONE
+ CMP #$20
+ BEQ ]L1
+ CMP #':'
+ BEQ :GOTCOMMA
+ CMP #','
+ BNE :DONE
+:GOTCOMMA
+]L1 INY ;Move to digits...
+ LDA [IPASCPTR],Y
+ BEQ :DONE
+ CMP #$20
+ BEQ ]L1
+ CMP #'0'
+ BCC :DONE
+ CMP #'9'+1
+ BCS :DONE
+
+ REP $10
+ PHY
+ SEP $10
+
+ LDX #0
+]L1 INY
+ INX
+ LDA [IPASCPTR],Y
+ CMP #'0'
+ BCC :CVTPORT
+ CMP #'9'+1
+ BCC ]L1
+
+:CVTPORT REP $30
+ PHS
+ LDA IPASCPTR
+ CLC
+ ADC 1+2,S
+ TAY
+ LDA IPASCPTR+2
+ ADC #0
+ PHA
+ PHY
+ PHX
+ PEA 0
+ _Dec2Int
+ PLA
+ STA IPPORT
+ PLY
+:DONE REP $30
+*
+ PLD
+ PLX
+ PLY
+ PLS 2
+ PHY
+ PHX
+ PLB
+ RTL
+ mx %11
+:BUMP TYA
+ REP $30
+ AND #$FF
+ SEC
+ ADC IPASCPTR
+ STA IPASCPTR
+ LDA IPASCPTR+2
+ ADC #0
+ STA IPASCPTR+2
+ SEP $30
+ RTS
+ mx 0
+
+DelayAbortVBLs DBGMSG DelayAbortVBLs
+]L1 SEP $20
+ LDA >$E0C019
+ BPL *-4
+ LDA >$E0C019
+ BMI *-4
+ REP $20
+ JSR CHECKABORT
+ BCS :OUT
+ DEY
+ BNE ]L1
+:OUT RTS
+
+*-------------------------------------------------
+* Script display routines
+*-------------------------------------------------
+
+SHOWPSTRING PHY
+ TAX
+ LDA >DISPLAYPTR+1
+ ORA >DISPLAYPTR+1+1
+ BEQ PLYRTL
+ PEA ^*
+ PHX
+DISPLAYPTR JSL 0
+PLYRTL PLY
+ RTL
+
+SHOWSCRIPTLINE LDA >DISPLAYPTR+1
+ ORA >DISPLAYPTR+1+1
+ BEQ :RTS
+ PHY
+ LDX #0
+ SEP $20
+ DEY
+]LOOP INY
+ LDA [SCRIPTPTR],Y
+ AND #$7F
+ CMP #$20
+ BCC :DONE
+ STA :SCRIPTLINE,X
+ INX
+ BNE ]LOOP
+ DEX
+:DONE SEP $10
+ STX :SCRIPTPSTR
+ CPX #0
+ REP $30
+ BEQ :SKIP
+ LDA #:SCRIPTPSTR
+ JSL SHOWPSTRING
+:SKIP PLY
+:RTS RTS
+
+:SCRIPTPSTR DS 1
+:SCRIPTLINE DS 255
+
+*-------------------------------------------------
+* Variables
+*-------------------------------------------------
+
+VARIABLES DS lvlen
+
+ SAV SLIP.CODE.L
+
+ END

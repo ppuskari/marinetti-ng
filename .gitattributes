@@ -1,0 +1,10 @@
+# Preserve recovered Apple IIgs payload bytes in the provenance commit.
+* -text
+
+# Repository-native documentation and configuration use LF.
+/.gitattributes text eol=lf
+/.gitignore text eol=lf
+/README.md text eol=lf
+/docs/** text eol=lf
+/incoming/README.md text eol=lf
+

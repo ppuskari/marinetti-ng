@@ -1,0 +1,9 @@
+* Files in this folder are Merlin16 subroutine library files.
+* They should be copied to your Merlin16 subroutine library folder.
+* To find the location of your Merlin16 subroutine library folder
+* enter Merlin and catalog pathname "5/"
+* On my system 5/ is /Bernie/Merlin16/Subrout.Lib
+* The Casper link file relies on the library folder being assigned to 5/
+* If you have modified Merlins default paths then you will need
+* to modify the Casper link file. Please do not commit your changes into CVS.
+

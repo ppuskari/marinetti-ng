@@ -1,0 +1,9 @@
+ LKV $02
+ VER $02
+ TYP $BC
+ ADR $4083
+ LINK MacIP.CODE.L
+ SAV MacIP
+ END
+ CMD COPYFORK MacIP *:System:TCPIP:MacIP -d -l
+ CMD COPYFORK MacIP.RES *:System:TCPIP:MacIP -r -c -l

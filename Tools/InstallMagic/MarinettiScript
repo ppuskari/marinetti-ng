@@ -1,0 +1,88 @@
+thermomax 21
+* 24th June 2007 - Release Marinetti 3.0 install script
+
+say "Uninstalling existing versions of Marinetti"
+delete *:System:TCPIP
+delete *:System:CDevs:Marinetti
+delete *:System:CDevs:TCPIP
+delete *:System:Preferences:Marinetti
+delete *:System:System.setup:TCPIP
+delete *:System:Tools:Tool054
+thermo 1
+
+say "Installing Marinetti 3.0 system files"
+
+setpfx 31 *:System
+install :RAM5:Marinetti:CDevs:TCPIP 31:CDevs:TCPIP
+thermo 2
+install :RAM5:Marinetti:System.Setup:TCPIP 31:System.Setup:TCPIP
+thermo 3
+install :RAM5:Marinetti:Tools:Tool054 31:Tools:Tool054
+thermo 4
+
+say "Installing link layer modules"
+create *:System:TCPIP
+setpfx 31 *:System:TCPIP
+install :RAM5:Marinetti:TCPIP:PPP 31:PPP
+thermo 5
+install :RAM5:Marinetti:TCPIP:SLIP 31:SLIP
+thermo 6
+install :RAM5:Marinetti:TCPIP:PPP.scripted 31:PPP.scripted
+thermo 7
+install :RAM5:Marinetti:TCPIP:Direct.Connect 31:Direct.Connect
+thermo 8
+install :RAM5:Marinetti:TCPIP:MacIP 31:MacIP
+thermo 9
+
+say "Installing icon descriptor"
+install :RAM5:Marinetti:Icons:Ftype.TCPIP *:Icons:Ftype.TCPIP
+thermo 10
+
+say "Installing support files"
+
+setfolder 30 Marinetti.3.0 "Where shall I put the various Marinetti support files?"
+
+install :RAM5:Marinetti:README.DOC 30:README.DOC
+install :RAM5:Marinetti:CHANGES 30:CHANGES
+thermo 11
+
+say "Installing sample applications"
+create 30:Applications
+install :RAM5:Marinetti:Applications:Telnet 30:Applications:Telnet
+install :RAM5:Marinetti:Applications:Casper 30:Applications:Casper
+thermo 12
+
+say "Installing documentation"
+create 30:Documentation
+install :RAM5:Marinetti:Documentation:PPP.DOC 30:Documentation:PPP.DOC
+thermo 13
+install :RAM5:Marinetti:Documentation:PPP.Script.DOC 30:Documentation:PPP.Script.DOC
+thermo 14
+install :RAM5:Marinetti:Documentation:SLIP.DOC 30:Documentation:SLIP.DOC
+thermo 15
+install :RAM5:Marinetti:Documentation:DirConnect.DOC 30:Documentation:DirConnect.DOC
+thermo 16
+install :RAM5:Marinetti:Documentation:Marinetti.DOC 30:Documentation:Marinetti.DOC
+thermo 17
+install :RAM5:Marinetti:Documentation:MacIP.DOC 30:Documentation:MacIP.DOC
+thermo 18
+
+say "Uninstalling Marinetti 2.0 sample applications"
+delete 30:Applications:GKInfo
+thermo 19
+
+say "Uninstalling developer source code"
+delete 30:Source:TCPIP.EQU.S
+delete 30:Source:TCPIP.MACS.S
+delete 30:Source:TCPIPX.MACS.S
+thermo 20
+
+say "Uninstalling Casper source code"
+delete 30:Source:Casper:Casper.S
+delete 30:Source:Casper:Casper.LNK.S
+delete 30:Source:Casper:Casper.res
+delete 30:Source:Casper:CLSTRIP
+delete 30:Source:Casper:ADDPSTRHANDLE
+thermo 21
+
+end

@@ -1,0 +1,49 @@
+This file documents the directory structure of the
+Marinetti Open Source Project CVS repository.
+
+For the integrity of the project please keep to the
+intent of these directories when adding files to the
+repository.
+ 
+Assembler Link files and Object files should not be
+added to the repository. At the current time, not all
+source files exist to generate a complete build.
+Please read the PrepareDevEnv document for more information.
+ 
+Please note that Merlin source files must have their
+high-bits stripped before being imported, added, updated
+or committed to the repository. Use the '^' command
+from the Merlin main menu to save the source file
+without high-bits. This can also be scripted with the
+Merlin command COPYFORK.
+
+Applications - directory for applications that use Marinetti
+Marinetti - MOSP high level directory
+Marinetti\CDev - build files for TCPIP Control Panel
+Marinetti\Documentation - user documentation for final releases
+Marinetti\Equates - shared Equates files
+Marinetti\Icons - filetype and Icon information
+Marinetti\Init - build files for TCPIP Init
+Marinetti\LinkLayers - subdirectories for Link Layers
+Marinetti\LinkLayers\DC - build files for Direct Connect LL
+Marinetti\LinkLayers\MacIP - build files for MacIP LL
+Marinetti\LinkLayers\PPP - build files for PPP LL
+Marinetti\LinkLayers\PPPX - build files for Scripted PPP LL
+Marinetti\LinkLayers\SLIP - build files for SLIP LL
+Marinetti\ToolStub - build files for Tool054
+Tools - Assembler/Compiler specific items
+Tools\InstallMagic - input files for Installer builder application
+Tools\GSoftBASIC - TCP/IP tool interface files
+Tools\Merlin - Merlin 16 specific items
+Tools\Merlin\Commands - Shell command object files (EXE)
+Tools\Merlin\Help.Files - Documentation for Command files
+Tools\Merlin\Library - Subroutine library files (LNK)
+Tools\Merlin\Macros - Macro source files
+Tools\Merlin\Scripts - Script (link) files for doing useful things
+Tools\NiftyList - TCP/IP tool interface files
+Tools\Orca.C - TCP/IP tool interface files
+Tools\Orca.M - TCP/IP tool interface files
+Tools\Orca.Pascal - TCP/IP tool interface files
+Tools\System - IIgs System tool sets that Marinetti uses
+Tools\System\Crypto - build files for Crypto tool set
+Utilities - Directory for development and debugging utilities
