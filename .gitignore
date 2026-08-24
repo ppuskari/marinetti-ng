@@ -1,0 +1,14 @@
+# Local binary intake; redistribution requires a provenance/license review.
+incoming/*
+!incoming/README.md
+
+# Local build and benchmark output.
+build-local/
+benchmarks/out/
+
+# Editor and OS noise.
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
+
