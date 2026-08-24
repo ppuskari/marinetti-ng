@@ -12,7 +12,7 @@ This repository begins with the latest recoverable `MOSP` working tree from the 
 - The recovered changelog reaches Marinetti 3.0b5. The later TCPIP 3.0b11 binary must be reconciled against this source before optimization work can claim a matching baseline.
 - Uthernet II link-layer source has not been found in the upstream tree. The currently published Uthernet II link layer is distributed as freeware binary version 2.0.5, while the public source download on the author's page is for a generic emulator link layer. It is therefore intentionally not represented here as open source yet.
 
-See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the source and licensing audit, and [docs/ROADMAP.md](docs/ROADMAP.md) for the proposed work sequence.
+See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the source and licensing audit, [docs/REFERENCE_ARTIFACTS.md](docs/REFERENCE_ARTIFACTS.md) for the binary inventory and hashes, and [docs/ROADMAP.md](docs/ROADMAP.md) for the proposed work sequence.
 
 ## Supplying reference binaries
 
@@ -37,4 +37,3 @@ The first intake pass will:
 ## Upstream preservation
 
 The original recovered files are initially committed without line-ending normalization. Modernization, build-system work, and optimization changes should be made in separate commits so the provenance boundary remains clear.
-

@@ -5,10 +5,11 @@ incoming/*
 # Local build and benchmark output.
 build-local/
 benchmarks/out/
+analysis/
+tmp/
 
 # Editor and OS noise.
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
-
