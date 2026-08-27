@@ -14,6 +14,14 @@ This repository begins with the latest recoverable `MOSP` working tree from the 
 
 See [docs/PROVENANCE.md](docs/PROVENANCE.md) for the source and licensing audit, [docs/REFERENCE_ARTIFACTS.md](docs/REFERENCE_ARTIFACTS.md) for the binary inventory and hashes, and [docs/ROADMAP.md](docs/ROADMAP.md) for the proposed work sequence.
 
+## Petar_gsTCP experimental native stack
+
+The first hardware-working Petar_gsTCP streamer milestone is documented in [Petar_gsTCP](Petar_gsTCP/README.md). The R3B/R3C lineage sustained Tool225 22 kHz mono playback on a stock 2.8 MHz Apple IIgs at about 175.9-176.0 kbit/s with provider backpressure essentially zero.
+
+The critical hardware result is a **2920-byte advertised TCP payload window (two 1460-byte MSS)** for the W5100 socket-0 4 KiB MACRAW RX allocation. Advertising 4096 payload bytes caused repeated missing segments and future-sequence rejects.
+
+This native Uthernet II/W5100 implementation is kept separate from the recovered upstream Marinetti provenance boundary.
+
 ## Supplying reference binaries
 
 Place original archives or binaries in `incoming/`. That directory is ignored by Git so nothing is redistributed accidentally. For each file, please record where it came from and any known version information in a short text note beside it.
