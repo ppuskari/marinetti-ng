@@ -1,0 +1,23 @@
+R3B -> R3C controlled key-control correction
+
+Transport: UNCHANGED from hardware-stable R3B/R3A/R2B.
+Audio producer: UNCHANGED.
+Tool225 path: UNCHANGED.
+
+One executable behavior correction at PumpYieldNetwork:
+
+R3B accidentally restored the pre-HARDEN FULL-PADDLE bypass:
+    lda PumpRescueActive
+    beq M3R21FNormalControl
+    brl M3R21FFullPaddleBoundary
+
+That skipped CheckNetworkControlKey while Always-Paddle was active,
+functionally locking out ESC/C/R/D even though the latch routines were
+still present in the binary.
+
+R3C restores the HARDEN-R1K1 safe boundary verbatim:
+    jsr ReadRingCounters
+    jsr UpdateProducerLead
+    jsr CheckNetworkControlKey
+
+Keyboard/event work remains outside the exact TCP read hot path.

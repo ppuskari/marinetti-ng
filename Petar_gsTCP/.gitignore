@@ -1,0 +1,23 @@
+# Petar_gsTCP local/generated outputs
+**/__pycache__/
+**/.pytest_cache/
+**/.venv/
+**/build-local/
+**/build/
+**/out/
+**/dist/
+**/tmp/
+*.pyc
+*.pyo
+*.po
+*.bin
+*.obj
+*.o
+*.lst
+*.map
+*.log
+*.zip
+*.7z
+*.shk
+*.bxy
+_FileInformation.txt

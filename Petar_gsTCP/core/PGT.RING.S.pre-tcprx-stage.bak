@@ -1,0 +1,110 @@
+*=================================================
+* Petar_gsTCP power-of-two receive ring primitives
+* SPDX-License-Identifier: LGPL-2.1-or-later
+*=================================================
+
+* Return used bytes in A.
+
+PGTRingUsed     ent
+                rep   #$30
+                lda   PGTringHead
+                sec
+                sbc   PGTringTail
+                and   PGTringMask
+                clc
+                rtl
+
+* Return free bytes in A.  One byte remains reserved.
+
+PGTRingFree     ent
+                rep   #$30
+                lda   PGTringHead
+                sec
+                sbc   PGTringTail
+                and   PGTringMask
+                eor   PGTringMask
+                clc
+                rtl
+
+* Copy and commit PGTu2Remain bytes requested by PGTringNeed from the current
+* W5100 frame directly into the ring.  TCP uses PGTRingStageRX followed by
+* checksum validation and PGTRingCommitRX so invalid data never becomes visible
+* to the consumer.  Carry set leaves the producer head unchanged.
+
+PGTRingCopyRX   ent
+                jsl   PGTRingStageRX
+                bcs   PGTRingCopyFail
+                jsl   PGTRingCommitRX
+                rtl
+
+* Copy into the free producer spans without publishing a new head.  On success
+* PGTringSaved is the staged length.  The caller must either commit it or leave
+* PGTringHead unchanged and discard the staged bytes.
+
+PGTRingStageRX  ent
+                rep   #$30
+                lda   PGTringNeed
+                beq   PGTRingStageEmpty
+                cmp   PGTu2Remain
+                bcc   PGTRingFrameOK
+                beq   PGTRingFrameOK
+                sec
+                rtl
+PGTRingFrameOK  sta   PGTringSaved
+                jsl   PGTRingFree
+                cmp   PGTringNeed
+                bcs   PGTRingSpaceOK
+                sec
+                rtl
+
+PGTRingSpaceOK  lda   PGTringMask
+                inc
+                sec
+                sbc   PGTringHead
+                sta   PGTringFirst
+                cmp   PGTringNeed
+                bcc   PGTRingFirstOK
+                lda   PGTringNeed
+                sta   PGTringFirst
+PGTRingFirstOK  lda   PGTringBase
+                clc
+                adc   PGTringHead
+                sta   PGTu2BulkPtr
+                lda   PGTringBase+2
+                adc   #0
+                sta   PGTu2BulkPtr+2
+                lda   PGTringFirst
+                sta   PGTu2BulkLen
+                jsl   PGTU2CopyRXSpan
+                bcs   PGTRingCopyFail
+
+                lda   PGTringSaved
+                sec
+                sbc   PGTringFirst
+                beq   PGTRingStageDone
+                sta   PGTu2BulkLen
+                lda   PGTringBase
+                sta   PGTu2BulkPtr
+                lda   PGTringBase+2
+                sta   PGTu2BulkPtr+2
+                jsl   PGTU2CopyRXSpan
+                bcs   PGTRingCopyFail
+
+PGTRingStageDone clc
+                rtl
+PGTRingStageEmpty stz PGTringSaved
+                clc
+                rtl
+
+PGTRingCommitRX ent
+                rep   #$30
+                lda   PGTringHead
+                clc
+                adc   PGTringSaved
+                and   PGTringMask
+                sta   PGTringHead
+                stz   PGTringSaved
+                clc
+                rtl
+PGTRingCopyFail sec
+                rtl
